@@ -13,7 +13,7 @@
 #                      garai-build                 identita' della build: scrive solo nel proprio repository
 #   Secret Manager     garai-session-secret        firma dei cookie di sessione
 #                      garai-gemini-key            chiave Gemini (facoltativa: si puo' inserire anche dall'app)
-#   Cloud Run          garai                       il servizio (una sola istanza: e' l'unica a scrivere i dati)
+#   Cloud Run          garai                       il servizio (scala a zero, al massimo un'istanza: l'unica a scrivere i dati)
 set -euo pipefail
 
 PROJECT="${GCP_PROJECT:-tutoral-498710}"
@@ -93,10 +93,11 @@ gcloud builds submit --config=deploy/cloudbuild.yaml --substitutions="_IMAGE=$IM
 echo "== Deploy"
 SECRETS="GARAI_SECRET_KEY=garai-session-secret:latest"
 exists gcloud secrets describe garai-gemini-key && SECRETS="$SECRETS,GEMINI_API_KEY=garai-gemini-key:latest"
-# Una sola istanza sempre attiva con CPU allocata: le elaborazioni girano in background e i dati hanno un solo scrittore.
+# Scala a zero; al massimo un'istanza, perche' e' l'unica a scrivere i dati. CPU allocata per tutta la vita dell'istanza
+# (anche tra una richiesta e l'altra): le elaborazioni in background proseguono finche' l'istanza e' attiva.
 gcloud run deploy "$SERVICE" --image="$IMAGE" --region="$REGION" --service-account="$SA_RUN" \
   --allow-unauthenticated --execution-environment=gen2 --cpu=2 --memory=2Gi --no-cpu-throttling --cpu-boost \
-  --min-instances=1 --max-instances=1 --concurrency=40 --timeout=3600 \
+  --min-instances=0 --max-instances=1 --concurrency=40 --timeout=3600 \
   --set-env-vars="GCS_BUCKET=$DATA_BUCKET,MONTHLY_BUDGET_USD=${MONTHLY_BUDGET_USD:-20}" \
   --set-secrets="$SECRETS" --labels="$LABELS"
 

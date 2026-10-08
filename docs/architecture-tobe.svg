@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 730" width="1200" height="730" font-family="Work Sans, Segoe UI, Arial, sans-serif">
+<title>GarAI su Google Cloud: architettura target</title>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1b162d"/></marker></defs>
+<rect width="1200" height="730" fill="#ffffff"/>
+<text x="30" y="42" font-size="22" font-weight="700" fill="#1b162d" text-anchor="start">GarAI su Google Cloud · architettura target</text>
+<text x="30" y="66" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">Servizio che scala a zero, elaborazioni asincrone su Cloud Run Job, stato condiviso su Firestore.</text>
+<rect x="210" y="85" width="790" height="555" rx="14" fill="none" stroke="#c9c4d8" stroke-width="1.2"/>
+<text x="228" y="106" font-size="10.5" font-weight="600" fill="#6b6680" text-anchor="start" letter-spacing=".08em">PROGETTO GCP TUTORAL-498710 · EUROPE-WEST1 · RISORSE GARAI-*</text>
+<rect x="30" y="300" width="140" height="90" rx="10" fill="#1b162d"/>
+<text x="46" y="336" font-size="15" font-weight="700" fill="#ffffff" text-anchor="start">Bid manager</text>
+<text x="46" y="358" font-size="12.5" font-weight="400" fill="#d9d4ea" text-anchor="start">browser</text>
+<rect x="230" y="120" width="180" height="90" rx="10" fill="#f6f3ff" stroke="#7355ec" stroke-width="1.4"/>
+<text x="246" y="142" font-size="10.5" font-weight="600" fill="#7355ec" text-anchor="start" letter-spacing=".08em">CI/CD</text>
+<text x="246" y="164" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">Cloud Build</text>
+<text x="246" y="186" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">build dell'immagine</text>
+<rect x="470" y="120" width="220" height="90" rx="10" fill="#f6f3ff" stroke="#7355ec" stroke-width="1.4"/>
+<text x="486" y="142" font-size="10.5" font-weight="600" fill="#7355ec" text-anchor="start" letter-spacing=".08em">ARTIFACT REGISTRY</text>
+<text x="486" y="164" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">Immagine garai</text>
+<text x="486" y="186" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">unica per servizio e job</text>
+<rect x="760" y="120" width="220" height="90" rx="10" fill="#f6f3ff" stroke="#7355ec" stroke-width="1.4"/>
+<text x="776" y="142" font-size="10.5" font-weight="600" fill="#7355ec" text-anchor="start" letter-spacing=".08em">SECRET MANAGER</text>
+<text x="776" y="164" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">Segreti</text>
+<text x="776" y="186" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">chiave Gemini, firma sessioni</text>
+<rect x="230" y="300" width="180" height="90" rx="10" fill="#fff6ee" stroke="#ff7800" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text x="246" y="322" font-size="10.5" font-weight="600" fill="#c25a00" text-anchor="start" letter-spacing=".08em">ACCESSO</text>
+<text x="246" y="344" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">Identity-Aware Proxy</text>
+<text x="246" y="366" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">login Google Workspace</text>
+<rect x="470" y="270" width="220" height="150" rx="10" fill="#f6f3ff" stroke="#7355ec" stroke-width="1.4"/>
+<text x="486" y="292" font-size="10.5" font-weight="600" fill="#7355ec" text-anchor="start" letter-spacing=".08em">CLOUD RUN · SERVIZIO</text>
+<text x="486" y="314" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">garai</text>
+<text x="486" y="336" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">UI React + API FastAPI</text>
+<text x="486" y="355" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">scala a zero</text>
+<text x="486" y="374" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">avvia i job, mostra</text>
+<text x="486" y="393" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">l'avanzamento in tempo reale</text>
+<rect x="760" y="270" width="220" height="150" rx="10" fill="#fff6ee" stroke="#ff7800" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text x="776" y="292" font-size="10.5" font-weight="600" fill="#c25a00" text-anchor="start" letter-spacing=".08em">CLOUD RUN · JOB</text>
+<text x="776" y="314" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">garai-worker</text>
+<text x="776" y="336" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">analisi di bando e CV</text>
+<text x="776" y="355" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">generazione PPTX</text>
+<text x="776" y="374" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">anteprime con LibreOffice</text>
+<text x="776" y="393" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">un'esecuzione per pratica e fase</text>
+<rect x="1030" y="295" width="150" height="100" rx="10" fill="#f6f3ff" stroke="#7355ec" stroke-width="1.4"/>
+<text x="1046" y="317" font-size="10.5" font-weight="600" fill="#7355ec" text-anchor="start" letter-spacing=".08em">GOOGLE AI</text>
+<text x="1046" y="339" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">Gemini API</text>
+<text x="1046" y="361" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">3.8 Flash</text>
+<text x="1046" y="380" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">3.5 Flash-Lite</text>
+<rect x="230" y="510" width="180" height="95" rx="10" fill="#f6f3ff" stroke="#7355ec" stroke-width="1.4"/>
+<text x="246" y="532" font-size="10.5" font-weight="600" fill="#7355ec" text-anchor="start" letter-spacing=".08em">OPERAZIONI</text>
+<text x="246" y="554" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">Logging e Monitoring</text>
+<text x="246" y="576" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">log, metriche, allarmi</text>
+<text x="246" y="595" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">di spesa</text>
+<rect x="470" y="480" width="510" height="140" rx="12" fill="none" stroke="#c9c4d8" stroke-width="1.2" stroke-dasharray="2 4"/>
+<text x="486" y="499" font-size="10.5" font-weight="600" fill="#6b6680" text-anchor="start" letter-spacing=".08em">DATI CONDIVISI</text>
+<rect x="485" y="510" width="230" height="95" rx="10" fill="#fff6ee" stroke="#ff7800" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text x="501" y="532" font-size="10.5" font-weight="600" fill="#c25a00" text-anchor="start" letter-spacing=".08em">FIRESTORE</text>
+<text x="501" y="554" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">Stato e costi</text>
+<text x="501" y="576" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">pratiche, avanzamento,</text>
+<text x="501" y="595" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">registro delle chiamate AI</text>
+<rect x="735" y="510" width="230" height="95" rx="10" fill="#f6f3ff" stroke="#7355ec" stroke-width="1.4"/>
+<text x="751" y="532" font-size="10.5" font-weight="600" fill="#7355ec" text-anchor="start" letter-spacing=".08em">CLOUD STORAGE</text>
+<text x="751" y="554" font-size="15" font-weight="700" fill="#1b162d" text-anchor="start">File</text>
+<text x="751" y="576" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">bando, CV, PPTX, anteprime</text>
+<line x1="170" y1="345" x2="228" y2="345" stroke="#1b162d" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="199" y="336" font-size="11.5" font-weight="400" fill="#1b162d" text-anchor="middle">HTTPS</text>
+<line x1="410" y1="345" x2="468" y2="345" stroke="#1b162d" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="690" y1="335" x2="758" y2="335" stroke="#1b162d" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="724" y="326" font-size="11.5" font-weight="400" fill="#1b162d" text-anchor="middle">avvia</text>
+<line x1="980" y1="345" x2="1028" y2="345" stroke="#1b162d" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="1004" y="336" font-size="11.5" font-weight="400" fill="#1b162d" text-anchor="middle">LLM</text>
+<line x1="410" y1="165" x2="468" y2="165" stroke="#1b162d" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="580" y1="210" x2="580" y2="268" stroke="#1b162d" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="588" y="244" font-size="11.5" font-weight="400" fill="#1b162d" text-anchor="start">immagine</text>
+<line x1="870" y1="210" x2="870" y2="268" stroke="#1b162d" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="878" y="244" font-size="11.5" font-weight="400" fill="#1b162d" text-anchor="start">chiavi</text>
+<line x1="580" y1="420" x2="580" y2="478" stroke="#1b162d" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<text x="572" y="453" font-size="11.5" font-weight="400" fill="#1b162d" text-anchor="end">legge lo stato, salva i caricamenti</text>
+<line x1="870" y1="420" x2="870" y2="478" stroke="#1b162d" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<text x="862" y="453" font-size="11.5" font-weight="400" fill="#1b162d" text-anchor="end">scrive stato, costi e file</text>
+<rect x="30" y="672" width="34" height="20" rx="5" fill="#f6f3ff" stroke="#7355ec" stroke-width="1.4"/>
+<text x="74" y="687" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">attivo nella POC</text>
+<rect x="210" y="672" width="34" height="20" rx="5" fill="#fff6ee" stroke="#ff7800" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text x="254" y="687" font-size="12.5" font-weight="400" fill="#4a4560" text-anchor="start">da realizzare (vedi TODO in CLOUD.md)</text>
+</svg>
