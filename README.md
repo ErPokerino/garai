@@ -97,4 +97,6 @@ Test: `python -m pytest` (unit, auth, layer LLM e costi con SDK simulati, API). 
 - **Accesso**: tutte le API richiedono login. Password salvate come hash scrypt (`data/users.json`), sessione in cookie firmato HttpOnly/SameSite=Strict (Secure in HTTPS) con scadenza a 12 ore, protezione CSRF sull'origine delle richieste, blocco temporaneo dopo tentativi falliti, cambio password che chiude le altre sessioni. Per la messa online: `GARAI_SECRET_KEY` (chiave di firma delle sessioni) e `GARAI_ADMIN_PASSWORD` (password iniziale al posto di `123`) da un gestore di segreti; `python -m app --host 0.0.0.0` dietro HTTPS.
 - Le API key dei provider sono conservate sul server in `data/settings.json` e non vengono mai restituite in chiaro.
 
+Versione cloud (Google Cloud Run, senza PowerPoint): [docs/CLOUD.md](docs/CLOUD.md).
+
 Analisi della repo e piano di evoluzione: [docs/REFACTORING.md](docs/REFACTORING.md).

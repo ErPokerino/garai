@@ -1,0 +1,17 @@
+# sorgente inviato a Cloud Build: niente dati locali, CV di esempio o dipendenze
+.git
+.gitignore
+.env
+.claude/
+.cache/
+.pytest_cache/
+**/__pycache__/
+data/
+out/
+samples/
+scripts/
+tests/
+docs/
+web/node_modules/
+web/dist/
+*.tsbuildinfo

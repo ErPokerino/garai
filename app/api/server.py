@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated
@@ -43,6 +44,19 @@ SECURITY_HEADERS = {
 def _is_https(request: Request) -> bool:
     # dietro un proxy (es. Cloud Run) lo schema originale arriva in X-Forwarded-Proto
     return request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+
+
+# Proxy fidati davanti all'app (Cloud Run: 1). X-Forwarded-For puo' essere scritto dal client: valgono solo le voci
+# aggiunte dai proxy fidati, cioe' le ultime. Con 0 si usa l'indirizzo della connessione.
+TRUSTED_PROXY_HOPS = int(os.environ.get("TRUSTED_PROXY_HOPS", "0"))
+
+
+def _client_ip(request: Request) -> str:
+    if TRUSTED_PROXY_HOPS > 0:
+        hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
+        if len(hops) >= TRUSTED_PROXY_HOPS:
+            return hops[-TRUSTED_PROXY_HOPS]
+    return request.client.host if request.client else "?"
 
 
 def _same_origin(request: Request) -> bool:
@@ -86,9 +100,8 @@ class LoginBody(BaseModel):
 
 @app.post("/api/auth/login")
 def login(body: LoginBody, request: Request, response: Response):
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
     try:
-        token = auth.login(body.username, body.password, ip)
+        token = auth.login(body.username, body.password, _client_ip(request))
     except AuthError as e:
         headers = {"Retry-After": str(e.retry_after)} if e.retry_after else None
         return JSONResponse({"detail": e.message, "retry_after": e.retry_after}, status_code=e.status, headers=headers)
@@ -146,8 +159,6 @@ async def _conflict(_: Request, e: RuntimeError):
 
 # ============================================================================ stato e impostazioni
 def _renderer_name() -> str:
-    import os
-
     from app.render.powerpoint import available
 
     forced = os.environ.get("RENDERER", "").lower()

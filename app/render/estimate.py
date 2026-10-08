@@ -1,6 +1,7 @@
 """Misura del testo stimata con Pillow (fallback quando PowerPoint non e' disponibile) e renderer LibreOffice."""
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -17,6 +18,8 @@ from .base import ShapeMeasure
 
 EMU_PER_PT = 12700
 DEFAULT_PT = 10.0
+# La stima va a capo un po' prima di PowerPoint (larghezza utile ridotta): meglio una riga in meno che un testo che esce.
+WIDTH_MARGIN = float(os.environ.get("ESTIMATE_WIDTH_MARGIN", "0.04"))
 
 
 def _paragraph_lines(meter: TextMeter, p, width_pt: float) -> tuple[int, float]:
@@ -61,7 +64,7 @@ class EstimateMeasurer:
                 l_ins = int(bpr.get("lIns", 91440)) if bpr is not None else 91440
                 r_ins = int(bpr.get("rIns", 91440)) if bpr is not None else 91440
                 t_ins = int(bpr.get("tIns", 45720)) if bpr is not None else 45720
-                width_pt = (sh.width - l_ins - r_ins) / EMU_PER_PT
+                width_pt = (sh.width - l_ins - r_ins) / EMU_PER_PT * (1 - WIDTH_MARGIN)
                 total_lines, total_h = 0, 0.0
                 paras = list(paragraphs(body))
                 while len(paras) > 1 and not "".join(t.text or "" for t in paras[-1].iter(qa("t"))).strip():
@@ -141,8 +144,6 @@ class EstimateRenderer:
 
 def get_renderer(meter: TextMeter):
     """PowerPoint (se presente) > LibreOffice > stima Pillow. Forzabile con RENDERER=powerpoint|libreoffice|estimate."""
-    import os
-
     from .powerpoint import PowerPointRenderer, available
 
     forced = os.environ.get("RENDERER", "").lower()

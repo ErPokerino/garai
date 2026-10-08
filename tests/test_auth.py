@@ -106,3 +106,16 @@ def test_security_headers(client):
     c, _ = client
     r = c.get("/api/auth/me")
     assert r.headers["x-content-type-options"] == "nosniff" and r.headers["x-frame-options"] == "DENY"
+
+
+def test_client_ip_trusts_only_proxy_added_hops(monkeypatch):
+    """X-Forwarded-For e' scrivibile dal client: dietro Cloud Run vale solo l'ultima voce, aggiunta dal proxy."""
+    from types import SimpleNamespace
+
+    from app.api import server
+
+    req = SimpleNamespace(headers={"x-forwarded-for": "6.6.6.6, 203.0.113.9"}, client=SimpleNamespace(host="10.0.0.1"))
+    monkeypatch.setattr(server, "TRUSTED_PROXY_HOPS", 0)
+    assert server._client_ip(req) == "10.0.0.1"
+    monkeypatch.setattr(server, "TRUSTED_PROXY_HOPS", 1)
+    assert server._client_ip(req) == "203.0.113.9"

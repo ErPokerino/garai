@@ -1,0 +1,2 @@
+# solo per il deploy su Cloud Run (persistenza della cartella dati su Cloud Storage)
+google-cloud-storage>=2.18

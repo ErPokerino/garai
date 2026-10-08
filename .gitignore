@@ -2,6 +2,8 @@
 # samples/: bando e CV reali (dati personali), solo in locale
 samples/
 scripts/make_*_fixtures.py
+# font con licenza non ridistribuibile: solo nell'immagine del container
+assets/fonts/private/
 .env
 data/
 .cache/
