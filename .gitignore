@@ -1,0 +1,19 @@
+# dati locali: chiavi API, pratiche, registro costi
+# samples/: bando e CV reali (dati personali), solo in locale
+samples/
+scripts/make_*_fixtures.py
+.env
+data/
+.cache/
+out/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# frontend
+web/node_modules/
+web/dist/
+*.tsbuildinfo

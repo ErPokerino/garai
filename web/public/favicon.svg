@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff7800"/>
+      <stop offset="0.5" stop-color="#e58fb0"/>
+      <stop offset="1" stop-color="#7355ec"/>
+    </linearGradient>
+  </defs>
+  <!-- foglio con l'angolo piegato (il CV) e il prompt ">_" del marchio Abstract -->
+  <path d="M14 0h29l21 21v29a14 14 0 0 1-14 14H14A14 14 0 0 1 0 50V14A14 14 0 0 1 14 0Z" fill="url(#g)"/>
+  <path d="M43 0v13a8 8 0 0 0 8 8h13Z" fill="#fff" fill-opacity="0.45"/>
+  <path d="M15 24.5 26.5 35 15 45.5" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 46h14" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/>
+</svg>

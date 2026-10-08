@@ -1,0 +1,103 @@
+{
+  "name": "Abstract - Template Curriculum",
+  "template_file": "templates/abstract_cv_template.pptx",
+  "slides": [
+    {"key": "profile", "index": 0},
+    {"key": "experience", "index": 1}
+  ],
+  "font_regular": "assets/fonts/WorkSans-Regular.ttf",
+  "font_bold": "assets/fonts/WorkSans-Bold.ttf",
+  "line_height_factor": 1.17,
+  "bottom_limit_cm": 17.1,
+  "labels": {
+    "role": {"it": "Ruolo:", "en": "Role:"},
+    "company": {"it": "Azienda:", "en": "Company:"},
+    "total_experience": {"it": "Esperienza totale:", "en": "Total Experience:"},
+    "mobile": {"it": "Mobile", "en": "Mobile"},
+    "email": {"it": "Email", "en": "Email"},
+    "background": {"it": "Formazione e certificazioni:", "en": "Background:"},
+    "summary": {"it": "Sintesi:", "en": "Summary:"},
+    "skills": {"it": "Competenze principali:", "en": "Main skills:"},
+    "experience_heading": {"it": "Esperienze professionali:", "en": "Professional Experience:"},
+    "role_held": {"it": "Ruolo ricoperto:", "en": "Role:"}
+  },
+  "slots": [
+    {"id": "name", "slide": "profile", "kind": "text", "field": "full_name", "shape_ids": [3]},
+    {"id": "role_title", "slide": "profile", "kind": "text", "field": "profile_name", "shape_ids": [4]},
+    {
+      "id": "contacts", "slide": "profile", "kind": "label_lines", "shape_ids": [29],
+      "options": {
+        "lines": [
+          {"label_key": "mobile", "field": "phone"},
+          {"label_key": "email", "field": "email"}
+        ],
+        "separator": "\t", "value_bold": false
+      }
+    },
+    {
+      "id": "role_company", "slide": "profile", "kind": "label_lines", "shape_ids": [7],
+      "options": {
+        "lines": [
+          {"label_key": "role", "field": "current_role"},
+          {"label_key": "company", "field": "current_company"}
+        ],
+        "separator": " ", "value_bold": false, "max_chars": 44
+      }
+    },
+    {
+      "id": "total_experience", "slide": "profile", "kind": "label_lines", "shape_ids": [2],
+      "options": {
+        "lines": [{"label_key": "total_experience", "field": "total_experience"}],
+        "separator": " ", "value_bold": true
+      }
+    },
+    {
+      "id": "domicile", "slide": "profile", "kind": "label_lines", "shape_ids": [10],
+      "remove_shape_ids_if_empty": [71],
+      "options": {
+        "lines": [{"label_key": null, "field": "domicile"}],
+        "separator": "", "value_bold": true
+      }
+    },
+    {"id": "background_label", "slide": "profile", "kind": "static_label", "shape_ids": [18], "options": {"label_key": "background", "width_cm": 14.2}},
+    {"id": "summary_label", "slide": "profile", "kind": "static_label", "shape_ids": [21], "options": {"label_key": "summary"}},
+    {"id": "skills_label", "slide": "profile", "kind": "static_label", "shape_ids": [19], "options": {"label_key": "skills"}},
+    {
+      "id": "background", "slide": "profile", "kind": "bullets", "field": "background",
+      "box": {"x": 2.02, "y": 12.75, "w": 14.2, "h": 4.35},
+      "font_pt": 11,
+      "options": {"label_shape_id": 18, "space_after_pt": 3}
+    },
+    {
+      "id": "summary", "slide": "profile", "kind": "free_text", "field": "summary",
+      "box": {"x": 18.35, "y": 7.4, "w": 13.4, "h": 5.2},
+      "font_pt": 12,
+      "options": {"space_after_pt": 0}
+    },
+    {
+      "id": "skills", "slide": "profile", "kind": "pills", "field": "skills",
+      "shape_ids": [22],
+      "remove_shape_ids": [22, 13, 24, 12, 8],
+      "font_pt": 12,
+      "options": {
+        "columns": [{"x": 18.35, "w": 5.1}, {"x": 23.92, "w": 5.1}],
+        "first_row_y": 13.78, "row_pitch": 1.25, "pill_h": 1.0, "max_rows": 3
+      }
+    },
+    {"id": "experience_heading", "slide": "experience", "kind": "static_label", "shape_ids": [21], "options": {"label_key": "experience_heading", "width_cm": 14.0}},
+    {
+      "id": "experiences", "slide": "experience", "kind": "experience_columns", "field": "experiences",
+      "shape_ids": [8, 2, 9],
+      "remove_shape_ids": [23],
+      "font_pt": 10,
+      "options": {
+        "proto_column": 8,
+        "blocks_per_column": 2,
+        "bullets_per_block": 4,
+        "column_width_cm": 9.0,
+        "role_label_key": "role_held",
+        "title_max_lines": 2
+      }
+    }
+  ]
+}
