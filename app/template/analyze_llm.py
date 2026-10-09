@@ -1,4 +1,4 @@
-"""Proposta di Template Spec da parte di un LLM con visione (per template nuovi). Da validare a mano una volta sola."""
+"""Proposta di Template Spec da parte di un LLM con visione (per template nuovi), poi corretta in modo deterministico."""
 from __future__ import annotations
 
 import json
@@ -9,19 +9,21 @@ from app.llm.client import LLMClient
 from app.schemas import TemplateSpec
 
 from .inventory import inventory
+from .normalize import normalize_spec
 from .spec import DEFAULT_SPEC, load_spec
 
 
-def propose_spec(llm: LLMClient, pptx_path: str | Path, rendered_images: list[Path]) -> TemplateSpec:
+def propose_spec(llm: LLMClient, pptx_path: str | Path, rendered_images: list[Path]) -> tuple[TemplateSpec, list[str]]:
+    """Spec eseguibile per il template e note sulle correzioni applicate."""
     reference = load_spec(DEFAULT_SPEC).model_dump_json()  # esempio di spec valido come formato di riferimento
     user = (
         "SHAPE INVENTORY (JSON):\n"
         + json.dumps(inventory(pptx_path), ensure_ascii=False)
-        + "\n\nEXAMPLE OF A VALID SPEC FOR ANOTHER TEMPLATE (format reference only):\n"
+        + "\n\nEXAMPLE OF A VALID SPEC FOR A DIFFERENT TEMPLATE (format reference only, do not copy its layout):\n"
         + reference
         + f"\n\nReturn the spec for this template; set template_file to '{pptx_path}'."
     )
-    return llm.structured(
+    spec = llm.structured(
         task="template:propose_spec",
         system=prompts.TEMPLATE_ANALYST_SYSTEM,
         user=user,
@@ -30,3 +32,4 @@ def propose_spec(llm: LLMClient, pptx_path: str | Path, rendered_images: list[Pa
         images=rendered_images,
         max_tokens=12000,
     )
+    return normalize_spec(spec, pptx_path)

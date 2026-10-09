@@ -396,11 +396,15 @@ def reanalyze(run_id: str):
 class AssignmentsBody(BaseModel):
     assignments: dict[str, Assignment] = Field(default_factory=dict)
     names: dict[str, str | None] | None = Field(default=None, description="nome file CV -> nome e cognome ('' = assente)")
+    details: dict[str, dict] | None = Field(
+        default=None, description="nome file CV -> {location, email, phone, current_role, instructions, excluded}"
+    )
+    guidance: str | None = Field(default=None, description="Indicazioni per la scrittura valide per tutti i candidati.")
 
 
 @app.put("/api/runs/{run_id}/assignments")
 def put_assignments(run_id: str, body: AssignmentsBody):
-    runs.set_assignments(run_id, body.assignments, body.names)
+    runs.set_assignments(run_id, body.assignments, body.names, body.details, body.guidance)
     return _run_view(run_id)
 
 

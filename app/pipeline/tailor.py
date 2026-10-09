@@ -33,6 +33,7 @@ def write_content(
     feedback: list[str] | None = None,
     previous: WriterOutput | None = None,
     subprofile: str | None = None,
+    instructions: str | None = None,
 ) -> WriterOutput:
     user = {
         "output_language": prompts.language_name(language),
@@ -41,6 +42,11 @@ def write_content(
         "cv": cv.model_dump(exclude_none=True, exclude={"source_file"}),
     }
     text = "INPUT (JSON):\n" + json.dumps(user, ensure_ascii=False)
+    if instructions and instructions.strip():
+        text += (
+            "\n\nINSTRUCTIONS FROM THE BID MANAGER (follow them; they never allow inventing facts not in the CV):\n"
+            + instructions.strip()
+        )
     if feedback:
         text += (
             "\n\nREVISION REQUIRED. Your previous output had these problems; fix them while keeping everything else.\n"
@@ -61,6 +67,11 @@ def _clean(s: str | None) -> str:
     return re.sub(r"\s+", " ", (s or "")).strip()
 
 
+def _cap(items: list, n: int, shown: bool) -> list:
+    """Taglia al massimo previsto solo se il campo e' stampato dal template (altrimenti resta com'e')."""
+    return items[:n] if shown and n else items
+
+
 def normalize_writer_output(w: WriterOutput, budgets: Budgets) -> WriterOutput:
     """Pulizia strutturale deterministica (spazi, vuoti, duplicati, conteggi massimi)."""
     w = w.model_copy(deep=True)
@@ -73,8 +84,8 @@ def normalize_writer_output(w: WriterOutput, budgets: Budgets) -> WriterOutput:
         if s and s.lower() not in seen:
             seen.add(s.lower())
             skills.append(s)
-    w.skills = skills[: budgets.skills_max_items]
-    w.background = [b for b in (_clean(x) for x in w.background) if b][: budgets.background_max_lines]
+    w.skills = _cap(skills, budgets.skills_max_items, budgets.shows("skills"))
+    w.background = _cap([b for b in (_clean(x) for x in w.background) if b], budgets.background_max_lines, budgets.shows("background"))
     blocks = []
     for e in w.experiences:
         e.title, e.role = _clean(e.title), _clean(e.role)
@@ -82,7 +93,16 @@ def normalize_writer_output(w: WriterOutput, budgets: Budgets) -> WriterOutput:
         e.bullets = [b for b in (_clean(x).lstrip("-•· ") for x in e.bullets) if b][: budgets.exp_bullets_per_block]
         if e.title or e.role:
             blocks.append(e)
-    w.experiences = blocks[: budgets.exp_max_blocks]
+    w.experiences = _cap(blocks, budgets.exp_max_blocks, budgets.shows("experiences"))
+    extras = []
+    for f in w.extra_fields:
+        cf = budgets.custom_fields.get(f.key)
+        if cf is None:
+            continue  # campo non richiesto dal template
+        f.text = _clean(f.text)
+        f.items = [x for x in (_clean(i) for i in f.items) if x][: cf.get("max_items") or None]
+        extras.append(f)
+    w.extra_fields = extras
     return w
 
 
@@ -112,6 +132,8 @@ def assemble_person(
     language: str,
     today: date | None = None,
     subprofile: str | None = None,
+    custom_types: dict[str, str] | None = None,
+    role_override: str | None = None,
 ) -> PersonContent:
     warnings: list[str] = []
     if cv.full_name:
@@ -120,6 +142,10 @@ def assemble_person(
         name, placeholder = invent_name(language, cv.source_file or "cv"), True
         warnings.append(f"Nome non presente nel CV '{cv.source_file}': nome inventato ('{name}').")
     months = total_months(cv, today)
+    extra: dict[str, str | list[str]] = {}
+    for f in w.extra_fields:
+        kind = (custom_types or {}).get(f.key, "list" if f.items and not f.text else "text")
+        extra[f.key] = (f.items or ([f.text] if f.text else [])) if kind == "list" else (f.text or ", ".join(f.items))
     return PersonContent(
         source_file=cv.source_file,
         profile_id=profile.id,
@@ -128,7 +154,7 @@ def assemble_person(
         name_is_placeholder=placeholder,
         phone=cv.phone,
         email=cv.email,
-        current_role=w.current_role or cv.headline,
+        current_role=(role_override or "").strip() or w.current_role or cv.headline,
         current_company=_current_company(cv),
         total_experience=format_experience(months, language),
         domicile=cv.location,
@@ -136,6 +162,7 @@ def assemble_person(
         background=w.background,
         skills=w.skills,
         experiences=sort_blocks(w.experiences, cv),
+        extra=extra,
         coverage=w.coverage,
         omitted=w.omitted,
         warnings=warnings,

@@ -1,5 +1,6 @@
 import type {
   Assignment,
+  CandidateDetails,
   CostSummary,
   Estimate,
   LLMCall,
@@ -79,8 +80,13 @@ export const api = {
   reanalyze: (id: string) => req<Run>(`/api/runs/${id}/analyze`, { method: "POST" }),
   deleteRun: (id: string) => req<{ ok: boolean }>(`/api/runs/${id}`, { method: "DELETE" }),
   /** names: nome file CV -> nome e cognome inserito/corretto in revisione ("" = assente, verrà inventato) */
-  setAssignments: (id: string, assignments: Record<string, Assignment>, names?: Record<string, string>) =>
-    req<Run>(`/api/runs/${id}/assignments`, json("PUT", { assignments, names })),
+  setAssignments: (
+    id: string,
+    assignments: Record<string, Assignment>,
+    names?: Record<string, string>,
+    details?: Record<string, CandidateDetails>,
+    guidance?: string,
+  ) => req<Run>(`/api/runs/${id}/assignments`, json("PUT", { assignments, names, details, guidance })),
   estimate: (id: string, visualCritic: boolean) =>
     req<Estimate>(`/api/runs/${id}/estimate?visual_critic=${visualCritic}`),
   generate: (id: string, visualCritic: boolean) =>

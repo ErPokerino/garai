@@ -56,6 +56,22 @@ export interface CVCanonical {
   skills: string[];
 }
 
+export interface CandidateEdits {
+  instructions: string;
+  current_role?: string | null;
+  excluded: boolean;
+}
+
+/** Interventi in fase di controllo inviati al server (solo i campi cambiati). */
+export interface CandidateDetails {
+  location?: string;
+  email?: string;
+  phone?: string;
+  current_role?: string;
+  instructions?: string;
+  excluded?: boolean;
+}
+
 export interface Assignment {
   profile_id: string;
   subprofile?: string | null;
@@ -93,6 +109,7 @@ export interface PersonContent {
   background: string[];
   skills: string[];
   experiences: ExperienceBlock[];
+  extra?: Record<string, string | string[]>;
   coverage: RequirementCoverage[];
   omitted: string[];
   warnings: string[];
@@ -127,6 +144,8 @@ export interface GenerationReport {
   template_name: string;
   people: PersonReport[];
   notes: string[];
+  fields?: string[];
+  field_labels?: Record<string, string>;
 }
 
 export interface RunResultInfo {
@@ -182,6 +201,8 @@ export interface Run {
   bando?: BandoSpec | null;
   cvs: CVCanonical[];
   assignments: Record<string, Assignment>;
+  candidates?: Record<string, CandidateEdits>;
+  guidance?: string;
   result?: RunResultInfo | null;
   log: LogEntry[];
   cost: { totals: CostAgg; by_stage: CostAgg[]; by_phase: CostAgg[] };

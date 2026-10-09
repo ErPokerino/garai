@@ -12,7 +12,7 @@ from app.ingestion.loader import SourceDocument, load_document
 from app.llm.client import LLMClient, LLMUnavailable
 from app.render.estimate import get_renderer
 from app.schemas import BandoSpec, CVCanonical, GenerationReport, PersonContent, PersonReport, TemplateSpec, WriterOutput
-from app.template.budget import Budgets, compute_budgets
+from app.template.budget import Budgets, compute_budgets, custom_field_labels, template_fields
 from app.template.deck import make_meter
 from app.template.spec import load_spec, resolve_labels, template_path
 
@@ -94,23 +94,28 @@ class Pipeline:
         return {it.cv.source_file: a for it, a in zip(items, res)}
 
     # ------------------------------------------------------------------ fase 2: generazione
+    def _assemble(self, cv, profile, w, lang, sub, role: str | None) -> PersonContent:
+        types = {f.key: f.type for f in self.spec.fields}
+        return assemble_person(cv, profile, w, lang, subprofile=sub, custom_types=types, role_override=role)
+
     def _write_person(
-        self, item: CVItem, profile, sub, bando: BandoSpec, budgets: Budgets
+        self, item: CVItem, profile, sub, bando: BandoSpec, budgets: Budgets, instr: str | None = None, role: str | None = None
     ) -> tuple[WriterOutput, PersonContent, list]:
         cv = item.cv
         lang = bando.language
-        w = write_content(self.llm, cv, profile, bando, budgets, lang, subprofile=sub)
-        content = assemble_person(cv, profile, w, lang, subprofile=sub)
+        w = write_content(self.llm, cv, profile, bando, budgets, lang, subprofile=sub, instructions=instr)
+        content = self._assemble(cv, profile, w, lang, sub, role)
         # 1) budget: fino a 2 revisioni LLM se il testo supera nettamente i limiti
         for _ in range(2):
             fb = budget_feedback(content, budgets)
             if not fb:
                 break
             try:
-                w = write_content(self.llm, cv, profile, bando, budgets, lang, feedback=fb, previous=w, subprofile=sub)
+                w = write_content(self.llm, cv, profile, bando, budgets, lang, feedback=fb, previous=w, subprofile=sub,
+                                  instructions=instr)
             except LLMUnavailable:
                 break  # niente revisione LLM: ci pensano misura reale e trimming deterministico
-            content = assemble_person(cv, profile, w, lang, subprofile=sub)
+            content = self._assemble(cv, profile, w, lang, sub, role)
         # 2) fedelta': se ci sono affermazioni non supportate gravi, una revisione
         faith: list = []
         try:
@@ -118,8 +123,9 @@ class Pipeline:
             severe = [f for f in faith if f.severity == "high"]
             if severe:
                 fb = [f"Remove or correct unsupported claim in {f.slot}: '{f.text}' ({f.reason})" for f in severe]
-                w = write_content(self.llm, cv, profile, bando, budgets, lang, feedback=fb, previous=w, subprofile=sub)
-                content = assemble_person(cv, profile, w, lang, subprofile=sub)
+                w = write_content(self.llm, cv, profile, bando, budgets, lang, feedback=fb, previous=w, subprofile=sub,
+                                  instructions=instr)
+                content = self._assemble(cv, profile, w, lang, sub, role)
                 faith = verify_content(self.llm, item.doc.text, content)
         except LLMUnavailable:
             content.warnings.append("Verifica di fedelta' non eseguita (LLM non disponibile).")
@@ -136,8 +142,11 @@ class Pipeline:
         assignments: dict[str, Assignment],
         out_dir: Path,
         visual_critic: bool = True,
+        instructions: dict[str, str] | None = None,
+        role_overrides: dict[str, str] | None = None,
     ) -> RunResult:
-        """assignments: nome file CV -> Assignment (profilo e sotto-profilo; modificabile dall'utente)."""
+        """assignments: nome file CV -> Assignment (profilo e sotto-profilo; modificabile dall'utente).
+        instructions: indicazioni del bid manager per CV; role_overrides: ruolo attuale imposto a mano per CV."""
         self._phase("generation")
         lang = bando.language
         budgets = compute_budgets(self.spec, self.meter, self.cfg.max_experiences)
@@ -149,16 +158,18 @@ class Pipeline:
         self.progress("write", 0.0, "Scrittura dei contenuti per ogni CV (LLM)")
         profiles = [bando.get(assignments[it.cv.source_file].profile_id) for it in items]
         subs = [assignments[it.cv.source_file].subprofile for it in items]
+        instr = [(instructions or {}).get(it.cv.source_file) or None for it in items]
+        roles = [(role_overrides or {}).get(it.cv.source_file) for it in items]
         done = [0]
 
         def work(a):
-            r = self._write_person(a[0], a[1], a[2], bando, budgets)
+            r = self._write_person(a[0], a[1], a[2], bando, budgets, a[3], a[4])
             done[0] += 1
             self.progress("write", done[0] / len(items), f"Contenuti pronti: {a[0].cv.source_file} ({done[0]}/{len(items)})")
             return r
 
         with ThreadPoolExecutor(max_workers=4) as ex:
-            results = list(ex.map(work, zip(items, profiles, subs)))
+            results = list(ex.map(work, zip(items, profiles, subs, instr, roles)))
         writer_outs = [r[0] for r in results]
         contents = [r[1] for r in results]
         faith_all = [r[2] for r in results]
@@ -167,12 +178,12 @@ class Pipeline:
             try:
                 w = write_content(
                     self.llm, items[person].cv, profiles[person], bando, budgets, lang,
-                    feedback=feedback, previous=writer_outs[person], subprofile=subs[person],
+                    feedback=feedback, previous=writer_outs[person], subprofile=subs[person], instructions=instr[person],
                 )
             except LLMUnavailable:
                 return None
             writer_outs[person] = w
-            return assemble_person(items[person].cv, profiles[person], w, lang, subprofile=subs[person])
+            return self._assemble(items[person].cv, profiles[person], w, lang, subs[person], roles[person])
 
         return self._finalize(bando, items, contents, faith_all, out_dir, rewriter, visual_critic)
 
@@ -216,6 +227,8 @@ class Pipeline:
             language=lang,
             template_name=self.spec.name,
             notes=[f"Renderer: {renderer.name}"],
+            fields=template_fields(self.spec),
+            field_labels=custom_field_labels(self.spec, labels),
         )
         for i, c in enumerate(contents):
             report.people.append(

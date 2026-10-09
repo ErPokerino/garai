@@ -25,7 +25,7 @@ from app.llm.base import BudgetExceeded, LLMUnavailable
 from app.llm.client import build_client, get_ledger
 from app.pipeline.llm_schemas import Assignment
 from app.pipeline.run import CVItem, Pipeline
-from app.schemas import BandoSpec, CVCanonical, GenerationReport, PersonContent, TemplateSpec
+from app.schemas import BandoSpec, CVCanonical, ExperienceBlock, GenerationReport, PersonContent, TemplateSpec
 from app.template.spec import load_spec, template_path
 
 from .estimate import estimate_generation
@@ -52,6 +52,14 @@ class LogEntry(BaseModel):
 
 class RunOptions(BaseModel):
     visual_critic: bool = False
+
+
+class CandidateEdits(BaseModel):
+    """Interventi del bid manager su un candidato prima della generazione."""
+
+    instructions: str = ""  # indicazioni per la scrittura (es. cosa mettere in evidenza)
+    current_role: str | None = None  # ruolo attuale da riportare cosi' com'e' sulla slide
+    excluded: bool = False  # candidato escluso dalla presentazione
 
 
 class RunResultInfo(BaseModel):
@@ -85,6 +93,8 @@ class RunState(BaseModel):
     bando: BandoSpec | None = None
     cvs: list[CVCanonical] = Field(default_factory=list)
     assignments: dict[str, Assignment] = Field(default_factory=dict)
+    candidates: dict[str, CandidateEdits] = Field(default_factory=dict)
+    guidance: str = ""  # indicazioni valide per tutti i candidati
     result: RunResultInfo | None = None
     log: list[LogEntry] = Field(default_factory=list)
 
@@ -195,8 +205,12 @@ class RunManager:
     def _spec(self, st: RunState, llm) -> TemplateSpec:
         d = self._dir(st.id)
         custom = d / "template" / "spec.json"
-        if custom.exists():
-            return load_spec(custom)
+        if custom.exists() and st.template_file:
+            from app.template.normalize import normalize_spec
+
+            # spec gia' proposto: si ricontrolla (anche quelli salvati da versioni precedenti dell'app)
+            spec, _ = normalize_spec(load_spec(custom), d / "in" / st.template_file)
+            return spec
         if st.template_file:
             p = d / "in" / st.template_file
             default_sha = hashlib.sha1(template_path(load_spec()).read_bytes()).hexdigest()
@@ -205,22 +219,35 @@ class RunManager:
         return load_spec()
 
     def _propose_spec(self, st: RunState, llm, tpl: Path) -> TemplateSpec:
-        """Template diverso da quello Abstract: l'LLM con visione propone lo Spec (sperimentale, da validare)."""
+        """Template diverso da quello Abstract: l'LLM con visione ne descrive gli spazi, poi lo spec viene corretto e provato."""
         from app.render.estimate import get_renderer
         from app.template.analyze_llm import propose_spec
-        from app.template.deck import make_meter
+        from app.template.deck import build_deck, make_meter
         from app.template.spec import dump_spec
 
-        self._log(st, "template", "Analisi del template personalizzato (LLM con visione, sperimentale)")
+        self._log(st, "template", "Analisi del template della gara (AI con visione)")
         d = self._dir(st.id) / "template"
         renderer = get_renderer(make_meter(load_spec()))
         try:
             imgs = renderer.render(tpl, d / "ref")
         finally:
             renderer.close()
-        spec = propose_spec(llm, tpl, imgs)
-        spec.template_file = str(tpl)
+        spec, notes = propose_spec(llm, tpl, imgs)
+        for n in notes:
+            self._log(st, "template", n, level="warn")
+        fillable = [s for s in spec.slots if s.kind != "static_label"]
+        if not fillable:
+            raise ValueError("Nel template non sono stati riconosciuti spazi da compilare: verifica che sia un template di CV.")
+        # prova di costruzione con un candidato fittizio: un errore emerge ora, non dopo la scrittura dei contenuti
+        demo = PersonContent(source_file="prova", profile_id="p", profile_name="Profilo", full_name="Nome Cognome",
+                             summary="Testo di prova.", skills=["Competenza"], background=["Formazione"],
+                             experiences=[ExperienceBlock(title="Cliente - Progetto", role="Ruolo", bullets=["Attivita'"])],
+                             extra={f.key: (["Voce"] if f.type == "list" else "Valore") for f in spec.fields})
+        build_deck(spec, [demo], {}, "it", d / "prova.pptx")
         dump_spec(spec, d / "spec.json")
+        names = ", ".join(sorted({s.field or s.kind for s in fillable if s.field} | {
+            ln["field"] for s in fillable if s.kind == "label_lines" for ln in s.options.get("lines", [])}))
+        self._log(st, "template", f"Template riconosciuto: {len(fillable)} spazi da compilare ({names})")
         return spec
 
     def _pipeline(self, st: RunState) -> Pipeline:
@@ -320,20 +347,54 @@ class RunManager:
 
     # ------------------------------------------------------------------ fase 2: generazione
     def set_assignments(self, run_id: str, assignments: dict[str, Assignment],
-                        names: dict[str, str | None] | None = None) -> RunState:
-        """Abbinamenti CV -> profilo e, facoltativamente, nomi dei candidati corretti/inseriti a mano.
-        Un nome vuoto lascia il nome assente: in generazione ne verra' inventato uno (segnalato nel report)."""
+                        names: dict[str, str | None] | None = None,
+                        details: dict[str, dict] | None = None, guidance: str | None = None) -> RunState:
+        """Abbinamenti CV -> profilo e interventi del bid manager prima della generazione.
+
+        names: nomi corretti/inseriti a mano (vuoto = assente: in generazione ne verra' inventato uno, segnalato).
+        details: per CV, dati che vanno sulla slide (location, email, phone, current_role), indicazioni per la
+        scrittura (instructions) ed esclusione dalla presentazione (excluded). guidance: indicazioni per tutti."""
         st = self.get(run_id)
-        by_file = {c.source_file: c for c in st.cvs}
-        for fn, name in (names or {}).items():
-            if fn not in by_file:
-                raise ValueError(f"CV sconosciuto: {fn}")
-            clean = " ".join((name or "").split())
-            if len(clean) > 80:
-                raise ValueError("Nome troppo lungo (max 80 caratteri).")
-            by_file[fn].full_name = clean or None
         if st.status not in ("review", "done", "error", "interrupted") or st.bando is None:
             raise RuntimeError("Abbinamenti modificabili solo dopo l'analisi.")
+        by_file = {c.source_file: c for c in st.cvs}
+        # validazione prima di toccare lo stato: una richiesta non valida non lascia modifiche a meta'
+        for fn in [*(details or {}), *(names or {}), *assignments]:
+            if fn not in by_file:
+                raise ValueError(f"CV sconosciuto: {fn}")
+        excluded = {fn: (details or {}).get(fn, {}).get("excluded", st.candidates.get(fn, CandidateEdits()).excluded)
+                    for fn in by_file}
+        if excluded and all(excluded.values()):
+            raise ValueError("Almeno un candidato deve restare nella presentazione.")
+        for fn, d in (details or {}).items():
+            for key in ("location", "email", "phone", "current_role"):
+                if len(str(d.get(key) or "")) > 120:
+                    raise ValueError("Valore troppo lungo (max 120 caratteri).")
+            if len(str(d.get("instructions") or "")) > 2000:
+                raise ValueError("Indicazioni troppo lunghe (max 2000 caratteri).")
+        if guidance is not None and len(guidance) > 3000:
+            raise ValueError("Indicazioni troppo lunghe (max 3000 caratteri).")
+        for fn, name in (names or {}).items():
+            if len(" ".join((name or "").split())) > 80:
+                raise ValueError("Nome troppo lungo (max 80 caratteri).")
+
+        for fn, d in (details or {}).items():
+            cv = by_file[fn]
+            ed = st.candidates.get(fn) or CandidateEdits()
+            for key in ("location", "email", "phone"):
+                if key in d:
+                    setattr(cv, key, " ".join(str(d[key] or "").split()) or None)
+            if "current_role" in d:
+                ed.current_role = " ".join(str(d["current_role"] or "").split()) or None
+            if "instructions" in d:
+                ed.instructions = str(d["instructions"] or "").strip()
+            if "excluded" in d:
+                ed.excluded = bool(d["excluded"])
+            st.candidates[fn] = ed
+        if guidance is not None:
+            st.guidance = guidance.strip()
+        for fn, name in (names or {}).items():
+            by_file[fn].full_name = " ".join((name or "").split()) or None
         for fn, a in assignments.items():
             if fn not in st.assignments:
                 raise ValueError(f"CV sconosciuto: {fn}")
@@ -348,12 +409,17 @@ class RunManager:
         self._save(st)
         return st
 
+    def included(self, st: RunState) -> list[str]:
+        """CV da mettere nella presentazione (quelli non esclusi in fase di controllo)."""
+        return [c.source_file for c in st.cvs if not st.candidates.get(c.source_file, CandidateEdits()).excluded]
+
     def estimate(self, run_id: str, visual_critic: bool | None = None) -> dict:
         st = self.get(run_id)
         if st.bando is None:
             raise RuntimeError("Stima disponibile dopo l'analisi.")
         crit = st.options.visual_critic if visual_critic is None else visual_critic
-        return estimate_generation(st, crit, settings)
+        keep = set(self.included(st))
+        return estimate_generation(st.model_copy(update={"cvs": [c for c in st.cvs if c.source_file in keep]}), crit, settings)
 
     def generate(self, run_id: str, visual_critic: bool | None = None) -> RunState:
         st = self.get(run_id)
@@ -389,11 +455,18 @@ class RunManager:
         d = self._dir(run_id)
         try:
             pipe = self._pipeline(st)
-            items = self._items(st)
+            keep = set(self.included(st))
+            items = [it for it in self._items(st) if it.cv.source_file in keep]
+            edits = {fn: st.candidates.get(fn, CandidateEdits()) for fn in keep}
+            instructions = {
+                fn: "\n".join(x for x in (st.guidance, e.instructions) if x) for fn, e in edits.items()
+            }
+            roles = {fn: e.current_role for fn, e in edits.items() if e.current_role}
             self._log(st, "write", "In attesa del motore di rendering..." if self._render_lock.locked() else "Avvio generazione")
             with self._render_lock:
                 shutil.rmtree(d / "out", ignore_errors=True)
-                res = pipe.generate(st.bando, items, st.assignments, d / "out", visual_critic=st.options.visual_critic)
+                res = pipe.generate(st.bando, items, st.assignments, d / "out", visual_critic=st.options.visual_critic,
+                                    instructions=instructions, role_overrides=roles)
             self._store_result(st, res, t0, edited=False)
         except Exception as e:  # noqa: BLE001
             self._fail(st, e, back_to="review" if isinstance(e, (LLMUnavailable, BudgetExceeded)) else None)

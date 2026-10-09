@@ -180,9 +180,23 @@ function LinesArea({ value, onChange, rows, placeholder, className = "input" }: 
   );
 }
 
-function Editor({ value, onChange }: { value: PersonContent; onChange: (c: PersonContent) => void }) {
+const STANDARD = new Set([
+  "full_name", "profile_name", "phone", "email", "current_role", "current_company", "total_experience", "domicile",
+  "summary", "background", "skills", "experiences",
+]);
+
+/** Editor dei contenuti: mostra solo i campi che il template stampa (tutti, per le pratiche generate prima). */
+function Editor({ value, onChange, fields, fieldLabels }: {
+  value: PersonContent;
+  onChange: (c: PersonContent) => void;
+  fields?: string[];
+  fieldLabels?: Record<string, string>;
+}) {
   const set = <K extends keyof PersonContent>(k: K, v: PersonContent[K]) => onChange({ ...value, [k]: v });
   const setExp = (i: number, patch: Partial<ExperienceBlock>) => set("experiences", value.experiences.map((e, j) => (j === i ? { ...e, ...patch } : e)));
+  const shows = (f: string) => !fields?.length || fields.includes(f);
+  const custom = (fields ?? []).filter((f) => !STANDARD.has(f));
+  const setExtra = (k: string, v: string | string[]) => set("extra", { ...(value.extra ?? {}), [k]: v });
 
   return (
     <div className="space-y-6">
@@ -198,16 +212,41 @@ function Editor({ value, onChange }: { value: PersonContent; onChange: (c: Perso
             onChange={(e) => onChange({ ...value, full_name: e.target.value, name_is_placeholder: false })}
           />
         </Field>
-        <Field label="Ruolo attuale">
-          <input className="input" value={value.current_role ?? ""} onChange={(e) => set("current_role", e.target.value)} />
-        </Field>
-        <Field label="Azienda attuale">
-          <input className="input" value={value.current_company ?? ""} onChange={(e) => set("current_company", e.target.value)} />
-        </Field>
-        <Field label="Esperienza complessiva">
-          <input className="input" value={value.total_experience ?? ""} onChange={(e) => set("total_experience", e.target.value)} />
-        </Field>
+        {shows("current_role") && (
+          <Field label="Ruolo attuale">
+            <input className="input" value={value.current_role ?? ""} onChange={(e) => set("current_role", e.target.value)} />
+          </Field>
+        )}
+        {shows("current_company") && (
+          <Field label="Azienda attuale">
+            <input className="input" value={value.current_company ?? ""} onChange={(e) => set("current_company", e.target.value)} />
+          </Field>
+        )}
+        {shows("total_experience") && (
+          <Field label="Esperienza complessiva">
+            <input className="input" value={value.total_experience ?? ""} onChange={(e) => set("total_experience", e.target.value)} />
+          </Field>
+        )}
+        {fields?.includes("domicile") && (
+          <Field label="Sede">
+            <input className="input" value={value.domicile ?? ""} onChange={(e) => set("domicile", e.target.value)} />
+          </Field>
+        )}
+        {custom.map((k) => {
+          const v = value.extra?.[k];
+          const label = fieldLabels?.[k] ?? k;
+          return Array.isArray(v) ? (
+            <Field key={k} label={label} hint="Una voce per riga">
+              <LinesArea rows={3} value={v} onChange={(nv) => setExtra(k, nv)} />
+            </Field>
+          ) : (
+            <Field key={k} label={label}>
+              <input className="input" value={v ?? ""} onChange={(e) => setExtra(k, e.target.value)} />
+            </Field>
+          );
+        })}
       </div>
+      {shows("summary") && (
       <Field
         label={
           <span className="flex justify-between">
@@ -217,14 +256,20 @@ function Editor({ value, onChange }: { value: PersonContent; onChange: (c: Perso
       >
         <textarea className="input" rows={5} value={value.summary} onChange={(e) => set("summary", e.target.value)} />
       </Field>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Competenze" hint="Una per riga, le più rilevanti per prime">
-          <LinesArea rows={7} value={value.skills} onChange={(v) => set("skills", v)} />
-        </Field>
-        <Field label="Formazione, certificazioni, lingue" hint="Una voce per riga">
-          <LinesArea rows={7} value={value.background} onChange={(v) => set("background", v)} />
-        </Field>
+        {shows("skills") && (
+          <Field label="Competenze" hint="Una per riga, le più rilevanti per prime">
+            <LinesArea rows={7} value={value.skills} onChange={(v) => set("skills", v)} />
+          </Field>
+        )}
+        {shows("background") && (
+          <Field label="Formazione, certificazioni, lingue" hint="Una voce per riga">
+            <LinesArea rows={7} value={value.background} onChange={(v) => set("background", v)} />
+          </Field>
+        )}
       </div>
+      {shows("experiences") && (
       <div>
         <div className="mb-3 flex items-center justify-between">
           <span className="text-sm font-medium">Esperienze</span>
@@ -261,18 +306,21 @@ function Editor({ value, onChange }: { value: PersonContent; onChange: (c: Perso
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------- drawer
-export function PersonDrawer({ runId, report, slides, version, onClose, busy }: {
+export function PersonDrawer({ runId, report, slides, version, onClose, busy, fields, fieldLabels }: {
   runId: string;
   report: PersonReport | null;
   slides: string[];
   version: string;
   onClose: () => void;
   busy: boolean;
+  fields?: string[];
+  fieldLabels?: Record<string, string>;
 }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"detail" | "edit">("detail");
@@ -328,7 +376,7 @@ export function PersonDrawer({ runId, report, slides, version, onClose, busy }: 
           ]}
         />
       </div>
-      {tab === "detail" ? <Detail runId={runId} report={report} slides={slides} version={version} /> : <Editor value={draft} onChange={setDraft} />}
+      {tab === "detail" ? <Detail runId={runId} report={report} slides={slides} version={version} /> : <Editor value={draft} onChange={setDraft} fields={fields} fieldLabels={fieldLabels} />}
     </Drawer>
   );
 }

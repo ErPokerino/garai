@@ -10,7 +10,7 @@ from app.schemas import FitIssue, PersonContent, TemplateSpec
 
 from .budget import compute_budgets
 from .clone import clone_slide, delete_slides
-from .fill import FillContext, extract_protos, fill_slide
+from .fill import FillContext, extract_protos, fill_slide, slot_areas
 from .measure import TextMeter
 from .spec import template_path
 
@@ -34,9 +34,16 @@ def make_meter(spec: TemplateSpec) -> TextMeter:
     return TextMeter(spec.font_regular, spec.font_bold, spec.line_height_factor)
 
 
+def experience_columns_slot(spec: TemplateSpec):
+    """Slot a colonne di esperienze (se il template ne ha uno): e' l'unico che si ripete su piu' slide."""
+    return next((s for s in spec.slots if s.kind == "experience_columns" and s.shape_ids), None)
+
+
 def experience_capacity(spec: TemplateSpec) -> int:
-    ex = spec.slot("experiences")
-    return len(ex.shape_ids) * ex.options.get("blocks_per_column", 2)
+    ex = experience_columns_slot(spec)
+    if ex is None:
+        return 10_000
+    return len(ex.shape_ids) * int(ex.options.get("blocks_per_column", 2))
 
 
 def build_deck(
@@ -49,9 +56,11 @@ def build_deck(
     meter = make_meter(spec)
     prs = Presentation(str(template_path(spec)))
     protos = extract_protos(prs, spec)
+    areas = slot_areas(prs, spec)
     originals = {ref.key: prs.slides[ref.index] for ref in spec.slides}
     n_orig = len(prs.slides)
     cap = experience_capacity(spec)
+    ex_cols = experience_columns_slot(spec)
 
     infos: list[SlideInfo] = []
     issues: list[FitIssue] = []
@@ -59,7 +68,7 @@ def build_deck(
     for pi, content in enumerate(contents):
         for ref in spec.slides:
             src = originals[ref.key]
-            if ref.key == "experience":
+            if ex_cols is not None and ex_cols.slide == ref.key:  # esperienze oltre la capienza: slide in piu'
                 exps = content.experiences
                 chunks = [exps[i : i + cap] for i in range(0, max(len(exps), 1), cap)] or [[]]
             else:
@@ -72,6 +81,7 @@ def build_deck(
                     labels=labels,
                     lang=language,
                     protos=protos,
+                    areas=areas,
                     meter=meter,
                     content=content,
                     person_idx=pi,

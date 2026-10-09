@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ActivityPanel, LogList, PhaseIndex } from "../components/run/Activity";
@@ -21,6 +22,11 @@ export default function RunPage() {
   });
   const busy = !!run && isBusy(run.status);
   const { calls } = useRunEvents(id, run?.event_seq, busy);
+  // da una presentazione generata si puo' tornare al controllo (abbinamenti, dati, indicazioni) e rigenerare
+  const [reviewing, setReviewing] = useState(false);
+  useEffect(() => {
+    if (run?.status !== "done") setReviewing(false);
+  }, [run?.status]);
 
   const retry = useMutation({
     mutationFn: () => (run?.bando && run.cvs.length ? api.generate(run.id, run.options.visual_critic) : api.reanalyze(run!.id)),
@@ -98,8 +104,10 @@ export default function RunPage() {
       )}
 
       {busy && <ActivityPanel run={run} calls={calls} />}
-      {!busy && run.status === "done" && run.result && <ResultPanel run={run} />}
-      {!busy && run.status !== "done" && canReview && <ReviewPanel run={run} />}
+      {!busy && run.status === "done" && run.result && !reviewing && <ResultPanel run={run} onReview={() => setReviewing(true)} />}
+      {!busy && canReview && (run.status !== "done" || reviewing) && (
+        <ReviewPanel run={run} onBack={reviewing ? () => setReviewing(false) : undefined} />
+      )}
       {!busy && !canReview && failed && <LogList log={run.log} />}
     </div>
   );

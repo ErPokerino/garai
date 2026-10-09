@@ -7,6 +7,7 @@
   ],
   "font_regular": "assets/fonts/WorkSans-Regular.ttf",
   "font_bold": "assets/fonts/WorkSans-Bold.ttf",
+  "font_family": "Work Sans",
   "line_height_factor": 1.17,
   "bottom_limit_cm": 17.1,
   "labels": {
