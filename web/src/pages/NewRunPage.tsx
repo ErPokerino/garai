@@ -83,21 +83,21 @@ export default function NewRunPage() {
           <Step n="02" title="I CV dei candidati" text="Tutti insieme, anche in formati e lingue diverse: verranno uniformati." done={cvs.length > 0}>
             <Dropzone empty="Scegli i CV o trascinali qui" hint="DOCX o PDF, più file insieme" accept={[".docx", ".pdf"]} multiple files={cvs} onChange={setCvs} />
           </Step>
-          <Step n="03" title="Il template" text="La presentazione usa il template CV Abstract. Puoi sceglierne un altro." done>
+          <Step n="03" title="Il template" text="Usa il template PowerPoint richiesto dalla gara. Se la gara non ne prevede uno, garai usa il template CV Abstract." done>
             <div className="space-y-3">
               <label className="flex cursor-pointer items-center gap-3 text-[15px]">
-                <input type="radio" className="size-4 accent-[var(--violet)]" checked={!customTpl} onChange={() => setCustomTpl(false)} />
-                Template CV Abstract <span className="text-ink-3">(consigliato)</span>
-              </label>
-              <label className="flex cursor-pointer items-center gap-3 text-[15px]">
                 <input type="radio" className="size-4 accent-[var(--violet)]" checked={customTpl} onChange={() => setCustomTpl(true)} />
-                Un altro template PowerPoint
+                Template richiesto dalla gara
               </label>
               {customTpl && (
-                <div className="pt-2">
-                  <Dropzone empty="Scegli il template" hint="PPTX · la mappatura degli spazi viene proposta dall'AI (sperimentale)" accept={[".pptx"]} files={tpl} onChange={setTpl} />
+                <div className="pb-1 pl-7">
+                  <Dropzone empty="Scegli il template della gara" hint="PPTX · la mappatura degli spazi viene proposta dall'AI (sperimentale)" accept={[".pptx"]} files={tpl} onChange={setTpl} />
                 </div>
               )}
+              <label className="flex cursor-pointer items-center gap-3 text-[15px]">
+                <input type="radio" className="size-4 accent-[var(--violet)]" checked={!customTpl} onChange={() => setCustomTpl(false)} />
+                Template CV Abstract <span className="text-ink-3">(se la gara non ne prevede uno)</span>
+              </label>
             </div>
           </Step>
         </div>

@@ -7,7 +7,7 @@ import { ApiError, api } from "../lib/api";
 const POINTS = [
   { n: "01", t: "Legge il bando", d: "profili, requisiti minimi ed elementi premianti" },
   { n: "02", t: "Abbina i candidati", d: "ogni CV al profilo più adatto, con la motivazione" },
-  { n: "03", t: "Prepara la presentazione", d: "CV sintetici e fedeli sul template Abstract" },
+  { n: "03", t: "Prepara la presentazione", d: "CV sintetici e fedeli sul template richiesto dalla gara" },
 ];
 
 export default function LoginPage() {
