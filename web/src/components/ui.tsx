@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Loader2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import { type ButtonHTMLAttributes, type ReactNode, type Ref, useEffect } from "react";
 import { STATUS_LABEL } from "../lib/format";
 import type { RunStatus } from "../lib/types";
@@ -258,7 +258,7 @@ export function Callout({ tone = "warn", icon, title, children }: { tone?: "warn
 // ---------------------------------------------------------------------------- Tabs (sottolineatura con il gradiente)
 export function Tabs<T extends string>({ value, onChange, items }: { value: T; onChange: (v: T) => void; items: { value: T; label: ReactNode; count?: number }[] }) {
   return (
-    <div className="flex gap-6 overflow-x-auto border-b border-line" role="tablist">
+    <div className="flex gap-6 no-scrollbar overflow-x-auto overflow-y-hidden border-b border-line" role="tablist">
       {items.map((it) => (
         <button
           key={it.value}
@@ -272,9 +272,72 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
         >
           {it.label}
           {it.count !== undefined && <span className="tabular text-xs text-ink-3">{it.count}</span>}
-          {value === it.value && <span className="brand-line absolute inset-x-0 -bottom-px h-0.5 rounded-full" />}
+          {value === it.value && <span className="brand-line absolute inset-x-0 bottom-0 h-0.5 rounded-full" />}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------- Segmented / Pager
+export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
+  return (
+    <div className="flex rounded-lg border border-line p-0.5" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          aria-pressed={value === o.id}
+          className={clsx(
+            "cursor-pointer rounded-md px-3 py-1.5 font-display text-[13px] font-medium transition",
+            value === o.id ? "bg-ink text-canvas" : "text-ink-2 hover:text-ink",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Paginazione di un elenco: «1–10 di 23», elementi per pagina, pagina precedente/successiva. */
+export function Pager({ page, pages, total, size, sizes, onPage, onSize, noun }: {
+  page: number;
+  pages: number;
+  total: number;
+  size: number;
+  sizes: number[];
+  onPage: (p: number) => void;
+  onSize: (s: number) => void;
+  noun: string;
+}) {
+  const from = total ? page * size + 1 : 0;
+  const to = Math.min(total, (page + 1) * size);
+  const nav = "grid size-8 cursor-pointer place-items-center rounded-lg border border-line text-ink-2 transition hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-line";
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 pt-5 text-[13px] text-ink-3">
+      <span className="tabular">
+        {from}–{to} di {total} {noun}
+      </span>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex items-center gap-2">
+          <span>Per pagina</span>
+          <Segmented value={String(size)} options={sizes.map((s) => ({ id: String(s), label: String(s) }))} onChange={(v) => onSize(Number(v))} label="Elementi per pagina" />
+        </div>
+        {pages > 1 && (
+          <div className="flex items-center gap-2">
+            <button className={nav} disabled={page === 0} onClick={() => onPage(page - 1)} aria-label="Pagina precedente">
+              <ChevronLeft className="size-4" />
+            </button>
+            <span className="tabular min-w-16 text-center text-ink-2">
+              {page + 1} / {pages}
+            </span>
+            <button className={nav} disabled={page >= pages - 1} onClick={() => onPage(page + 1)} aria-label="Pagina successiva">
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

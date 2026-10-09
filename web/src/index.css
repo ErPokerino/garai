@@ -163,6 +163,14 @@
   scrollbar-color: color-mix(in oklab, var(--ink-3) 45%, transparent) transparent;
 }
 
+/* barre a scorrimento orizzontali (es. schede) senza scrollbar visibile */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* palette categoriale dei grafici: viola e arancio del brand in testa; ordine validato (CVD) per entrambi i temi */
 :root {
   --series-1: #7355ec;

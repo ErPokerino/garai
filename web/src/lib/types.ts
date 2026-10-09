@@ -281,8 +281,9 @@ export interface PriceRow {
 export interface CostSummary {
   days: number;
   start: string | null;
+  today: string;
   totals: CostAgg;
-  by_day: CostAgg[];
+  by_day: { key: string; cost_usd: number; calls: number }[];
   by_day_model: { day: string; model: string; cost_usd: number; calls: number }[];
   by_model: CostAgg[];
   by_stage: (CostAgg & { label: string })[];

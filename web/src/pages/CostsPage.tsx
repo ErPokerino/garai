@@ -4,7 +4,7 @@ import { TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Empty, Metric, PageTitle, Panel, Spinner, Tag } from "../components/ui";
+import { Empty, Metric, PageTitle, Panel, Segmented, Spinner, Tag } from "../components/ui";
 import { api } from "../lib/api";
 import { compact, dateTime, dayLabel, int, usd } from "../lib/format";
 import type { CostSummary } from "../lib/types";
@@ -59,26 +59,6 @@ const MODES: { id: ChartMode; label: string }[] = [
   { id: "cumulative", label: "Cumulativa" },
 ];
 
-function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
-  return (
-    <div className="flex rounded-lg border border-line p-0.5" role="group" aria-label={label}>
-      {options.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChange(o.id)}
-          aria-pressed={value === o.id}
-          className={clsx(
-            "cursor-pointer rounded-md px-3 py-1.5 font-display text-[13px] font-medium transition",
-            value === o.id ? "bg-ink text-canvas" : "text-ink-2 hover:text-ink",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // decimali in base all'ordine di grandezza: con importi piccoli le tacche non si ripetono
 const yTick = (v: number) => (v === 0 ? "$0" : `$${v.toFixed(v < 0.1 ? 3 : v < 10 ? 2 : 0)}`);
 
@@ -98,8 +78,10 @@ function SpendChart({ data, colorOf }: { data: CostSummary; colorOf: (m: string)
     }
     // giorni senza spesa inclusi: l'asse del tempo resta continuo
     const days: string[] = [];
+    // date in forma YYYY-MM-DD, gia' nel fuso dell'utente: si avanza in UTC per non slittare di un giorno
     if (data.start) {
-      for (let d = new Date(data.start + "T00:00:00"); d <= new Date(); d.setDate(d.getDate() + 1)) days.push(d.toISOString().slice(0, 10));
+      for (let d = new Date(data.start + "T00:00:00Z"); d.toISOString().slice(0, 10) <= data.today; d.setUTCDate(d.getUTCDate() + 1))
+        days.push(d.toISOString().slice(0, 10));
     } else days.push(...[...byDay.keys()].sort());
     return { rows: days.map((d) => byDay.get(d) ?? { day: d }), models: [...models].sort() };
   }, [data]);
@@ -249,12 +231,14 @@ function StageChart({ data }: { data: CostSummary }) {
 
 export default function CostsPage() {
   const [days, setDays] = useState(30);
-  const { data, isLoading } = useQuery({ queryKey: ["costs", days], queryFn: () => api.costs(days) });
+  // aggiornato periodicamente: la giornata in corso mostra la spesa attuale
+  const { data, isLoading } = useQuery({ queryKey: ["costs", days], queryFn: () => api.costs(days), refetchInterval: 30_000 });
   const { data: calls } = useQuery({ queryKey: ["calls", "all"], queryFn: () => api.calls(undefined, 50) });
   const colorOf = useModelColors();
   const t = data?.totals;
   const budget = data?.monthly_budget_usd ?? 0;
   const ratio = budget > 0 && data ? data.month_to_date / budget : 0;
+  const today = data?.by_day.find((d) => d.key === data.today);
 
   return (
     <div className="animate-rise space-y-14">
@@ -274,7 +258,7 @@ export default function CostsPage() {
       ) : (
         <>
           <section className="grid grid-cols-2 gap-x-8 gap-y-8 border-y border-line py-8 lg:grid-cols-4">
-            <Metric label="Spesa nel periodo" value={usd(t.cost_usd)} hint={`${int(t.calls)} chiamate${t.errors ? ` · ${t.errors} non riuscite` : ""}`} />
+            <Metric label="Spesa nel periodo" value={usd(t.cost_usd)} hint={`${int(t.calls)} chiamate${t.errors ? ` · ${t.errors} non riuscite` : ""} · oggi ${usd(today?.cost_usd ?? 0)}`} />
             <div>
               <Metric
                 label="Mese corrente"

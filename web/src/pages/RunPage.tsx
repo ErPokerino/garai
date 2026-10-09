@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, RotateCcw } from "lucide-react";
+import { ArrowLeft, Pencil, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -9,7 +9,68 @@ import { ReviewPanel } from "../components/run/ReviewPanel";
 import { Button, Callout, NextStep, Spinner, StatusDot } from "../components/ui";
 import { ApiError, api } from "../lib/api";
 import { LANG_LABEL, PROVIDER_LABEL, isBusy, usd } from "../lib/format";
+import type { Run } from "../lib/types";
 import { useRunEvents } from "../lib/useRunEvents";
+
+/** Nome della pratica: modificabile in ogni momento (l'analisi del bando non lo sovrascrive più). */
+function RunTitle({ run }: { run: Run }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(run.title);
+  const save = useMutation({
+    mutationFn: (title: string) => api.setOptions(run.id, { title }),
+    onSuccess: (r) => {
+      qc.setQueryData(["run", run.id], r);
+      qc.invalidateQueries({ queryKey: ["runs"] });
+      setEditing(false);
+      toast.success("Nome della pratica aggiornato");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (!editing) {
+    return (
+      <div className="group flex items-start gap-2">
+        <h1 className="min-w-0 text-[32px] leading-[1.1] font-bold break-words sm:text-[40px]">{run.title}</h1>
+        <button
+          className="mt-2 shrink-0 cursor-pointer rounded-md p-1.5 text-ink-3 transition hover:bg-subtle hover:text-ink sm:mt-3"
+          onClick={() => {
+            setValue(run.title);
+            setEditing(true);
+          }}
+          aria-label="Rinomina la pratica"
+          title="Rinomina la pratica"
+        >
+          <Pencil className="size-4" />
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (value.trim()) save.mutate(value.trim());
+      }}
+    >
+      <input
+        className="input min-w-0 flex-1 font-display text-[22px] font-bold sm:text-[26px]"
+        autoFocus
+        maxLength={160}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+        aria-label="Nome della pratica"
+      />
+      <Button type="submit" size="sm" loading={save.isPending} disabled={!value.trim()}>
+        Salva
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>
+        Annulla
+      </Button>
+    </form>
+  );
+}
 
 export default function RunPage() {
   const { id } = useParams<{ id: string }>();
@@ -66,7 +127,7 @@ export default function RunPage() {
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <StatusDot status={run.status} />
           </div>
-          <h1 className="text-[32px] leading-[1.1] font-bold sm:text-[40px]">{run.title}</h1>
+          <RunTitle run={run} />
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[15px] text-ink-2">
             <span>{run.cv_files.length} candidati</span>
             {run.bando && <span>{LANG_LABEL[run.bando.language] ?? run.bando.language}</span>}
