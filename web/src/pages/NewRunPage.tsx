@@ -36,6 +36,7 @@ export default function NewRunPage() {
   const [critic, setCritic] = useState(false);
   const [hideCompanies, setHideCompanies] = useState(false);
   const [outputName, setOutputName] = useState("");
+  const [title, setTitle] = useState("");
 
   const create = useMutation({
     mutationFn: () => {
@@ -46,6 +47,7 @@ export default function NewRunPage() {
       fd.append("visual_critic", String(critic));
       fd.append("hide_companies", String(hideCompanies));
       if (outputName.trim()) fd.append("output_name", outputName.trim());
+      if (title.trim()) fd.append("title", title.trim());
       return api.createRun(fd);
     },
     onSuccess: (r) => {
@@ -141,7 +143,10 @@ export default function NewRunPage() {
                 />
               </div>
             </div>
-            <div className="border-t border-line pt-5">
+            <div className="space-y-4 border-t border-line pt-5">
+              <Field label="Nome della pratica" hint="Facoltativo: altrimenti si usa il titolo letto dal bando. Modificabile in ogni momento.">
+                <input className="input" value={title} maxLength={160} placeholder="Titolo del bando" onChange={(e) => setTitle(e.target.value)} />
+              </Field>
               <Field label="Nome del file" hint="Facoltativo: modificabile anche dopo la generazione.">
                 <div className="flex items-center gap-2">
                   <input

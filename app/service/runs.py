@@ -60,6 +60,11 @@ class RunOptions(BaseModel):
 _BAD_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
+def clean_title(raw: str | None) -> str:
+    """Nome della pratica: spazi normalizzati, lunghezza massima ragionevole."""
+    return " ".join((raw or "").split())[:160].strip()
+
+
 def clean_output_name(name: str) -> str:
     """Nome di file valido su Windows/macOS/Linux, senza estensione; vuoto se non utilizzabile."""
     name = _BAD_CHARS.sub(" ", name or "")
@@ -94,6 +99,7 @@ class RunState(BaseModel):
     created_at: str
     updated_at: str
     title: str = ""
+    title_custom: bool = False  # nome scelto dall'utente: l'analisi del bando non lo sovrascrive
     status: Status = "queued"
     stage: str = ""
     progress: float = 0.0
@@ -305,7 +311,7 @@ class RunManager:
 
     # ------------------------------------------------------------------ fase 1: creazione + analisi
     def create(self, bando: tuple[str, bytes], cvs: list[tuple[str, bytes]], template: tuple[str, bytes] | None,
-               options: RunOptions) -> RunState:
+               options: RunOptions, title: str | None = None) -> RunState:
         if not cvs:
             raise ValueError("Carica almeno un CV.")
         names = [n for n, _ in cvs]
@@ -319,7 +325,8 @@ class RunManager:
         cfg = settings
         prov = cfg.resolved_provider()
         st = RunState(
-            id=run_id, created_at=_now(), updated_at=_now(), title=Path(bando[0]).stem, options=options,
+            id=run_id, created_at=_now(), updated_at=_now(), title=clean_title(title) or Path(bando[0]).stem,
+            title_custom=bool(clean_title(title)), options=options,
             provider=prov,
             models={} if prov == "none" else {t: cfg.model_for(prov, t) for t in ("strong", "fast")},
             bando_file=Path(bando[0]).name, cv_files=[Path(n).name for n in names],
@@ -352,7 +359,7 @@ class RunManager:
             pipe = self._pipeline(st)
             _, bando = pipe.read_bando(d / "in" / st.bando_file)
             st.bando = bando
-            if bando.title:
+            if bando.title and not st.title_custom:
                 st.title = bando.title
             self._log(st, "bando", f"Bando analizzato: {len(bando.profiles)} profili, lingua '{bando.language}'", progress=0.3)
             self._save(st)
@@ -445,9 +452,14 @@ class RunManager:
         return estimate_generation(st.model_copy(update={"cvs": [c for c in st.cvs if c.source_file in keep]}), crit, settings)
 
     def set_options(self, run_id: str, visual_critic: bool | None = None, hide_companies: bool | None = None,
-                    output_name: str | None = None) -> RunState:
-        """Opzioni della pratica modificabili in ogni momento (il nome del file vale subito, senza rigenerare)."""
+                    output_name: str | None = None, title: str | None = None) -> RunState:
+        """Opzioni della pratica modificabili in ogni momento (nome della pratica e del file valgono subito, senza rigenerare)."""
         st = self.get(run_id)
+        if title is not None:
+            name = clean_title(title)
+            if not name:
+                raise ValueError("Il nome della pratica non può essere vuoto.")
+            st.title, st.title_custom = name, True
         if visual_critic is not None:
             st.options.visual_critic = visual_critic
         if hide_companies is not None:

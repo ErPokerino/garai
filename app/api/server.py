@@ -267,11 +267,28 @@ def reset_price(model: str):
 
 
 # ============================================================================ costi
+def _zone(tz: str | None):
+    """Fuso orario del browser (es. 'Europe/Rome'): i giorni dei costi sono quelli dell'utente, non UTC."""
+    from zoneinfo import ZoneInfo
+
+    try:
+        return ZoneInfo(tz) if tz else timezone.utc
+    except Exception:
+        return timezone.utc
+
+
 @app.get("/api/costs/summary")
-def costs_summary(days: int = 30):
+def costs_summary(days: int = 30, tz: str | None = None):
     led = get_ledger()
-    now = datetime.now(timezone.utc)
-    start = (now - timedelta(days=max(days, 1) - 1)).strftime("%Y-%m-%d") if days > 0 else None
+    zone = _zone(tz)
+    today = datetime.now(zone).date()
+    first_day = today - timedelta(days=max(days, 1) - 1) if days > 0 else None
+    # inizio del primo giorno locale, espresso in UTC come i timestamp del registro
+    start = (
+        datetime.combine(first_day, datetime.min.time(), zone).astimezone(timezone.utc).isoformat(timespec="seconds")
+        if first_day else None
+    )
+    by_day, by_day_model = led.daily(start=start, tz=zone)
     by_run = led.group("run", start=start)
     titles = {r.id: r.title for r in runs.list()}
     for r in by_run:
@@ -285,10 +302,11 @@ def costs_summary(days: int = 30):
     totals = led.totals(start=start)
     return {
         "days": days,
-        "start": start,
+        "start": first_day.isoformat() if first_day else None,
+        "today": today.isoformat(),
         "totals": totals,
-        "by_day": led.group("day", start=start),
-        "by_day_model": led.day_model(start=start),
+        "by_day": by_day,
+        "by_day_model": by_day_model,
         "by_model": led.group("model", start=start),
         "by_stage": by_stage,
         "by_run": sorted(by_run, key=lambda r: r["cost_usd"], reverse=True),
@@ -343,6 +361,7 @@ async def create_run(
     visual_critic: Annotated[bool, Form()] = False,
     hide_companies: Annotated[bool, Form()] = False,
     output_name: Annotated[str, Form(max_length=200)] = "",
+    title: Annotated[str, Form(max_length=300)] = "",
 ):
     b = await _read_upload(bando, ALLOWED_DOCS)
     cv_files = [await _read_upload(f, ALLOWED_DOCS) for f in cvs]
@@ -352,7 +371,7 @@ async def create_run(
     from app.service.runs import clean_output_name
 
     opts = RunOptions(visual_critic=visual_critic, hide_companies=hide_companies, output_name=clean_output_name(output_name))
-    st = runs.create(b, cv_files, tpl, opts)
+    st = runs.create(b, cv_files, tpl, opts, title=title)
     return _run_view(st.id)
 
 
@@ -425,6 +444,7 @@ class GenerateBody(BaseModel):
 
 
 class OptionsBody(BaseModel):
+    title: str | None = Field(default=None, max_length=300)
     visual_critic: bool | None = None
     hide_companies: bool | None = None
     output_name: str | None = Field(default=None, max_length=200)
@@ -432,7 +452,7 @@ class OptionsBody(BaseModel):
 
 @app.put("/api/runs/{run_id}/options")
 def put_options(run_id: str, body: OptionsBody):
-    runs.set_options(run_id, body.visual_critic, body.hide_companies, body.output_name)
+    runs.set_options(run_id, body.visual_critic, body.hide_companies, body.output_name, body.title)
     return _run_view(run_id)
 
 

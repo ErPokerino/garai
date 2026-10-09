@@ -70,7 +70,9 @@ export const api = {
 
   pricing: () => req<PriceRow[]>("/api/pricing"),
 
-  costs: (days: number) => req<CostSummary>(`/api/costs/summary?days=${days}`),
+  // giorni nel fuso del browser: la spesa di oggi e' quella della giornata dell'utente
+  costs: (days: number) =>
+    req<CostSummary>(`/api/costs/summary?days=${days}&tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}`),
   calls: (runId?: string, limit = 200) =>
     req<LLMCall[]>(`/api/costs/calls?limit=${limit}${runId ? `&run_id=${runId}` : ""}`),
 
@@ -89,7 +91,7 @@ export const api = {
   ) => req<Run>(`/api/runs/${id}/assignments`, json("PUT", { assignments, names, details, guidance })),
   estimate: (id: string, visualCritic: boolean) =>
     req<Estimate>(`/api/runs/${id}/estimate?visual_critic=${visualCritic}`),
-  setOptions: (id: string, opts: { visual_critic?: boolean; hide_companies?: boolean; output_name?: string }) =>
+  setOptions: (id: string, opts: { title?: string; visual_critic?: boolean; hide_companies?: boolean; output_name?: string }) =>
     req<Run>(`/api/runs/${id}/options`, json("PUT", opts)),
   generate: (id: string, visualCritic: boolean, hideCompanies?: boolean) =>
     req<Run>(`/api/runs/${id}/generate`, json("POST", { visual_critic: visualCritic, hide_companies: hideCompanies })),

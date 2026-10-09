@@ -130,11 +130,23 @@ class UsageLedger:
         w, a = self._where(start, end, run_id)
         return self._q(f"SELECT {expr} AS key, {self._AGG} FROM llm_calls {w} GROUP BY key ORDER BY key", a)
 
-    def day_model(self, start=None, end=None) -> list[dict]:
+    def daily(self, start=None, end=None, tz=None) -> tuple[list[dict], list[dict]]:
+        """Spesa per giorno e per giorno/modello nel fuso `tz` (i timestamp sono UTC: si aggrega al minuto e si converte)."""
+        tz = tz or timezone.utc
         w, a = self._where(start, end)
-        return self._q(
-            f"SELECT substr(ts,1,10) AS day, model, COALESCE(SUM(cost_usd),0) AS cost_usd, COUNT(*) AS calls "
-            f"FROM llm_calls {w} GROUP BY day, model ORDER BY day", a)
+        rows = self._q(
+            f"SELECT substr(ts,1,16) AS minute, model, COALESCE(SUM(cost_usd),0) AS cost_usd, COUNT(*) AS calls "
+            f"FROM llm_calls {w} GROUP BY minute, model", a)
+        days: dict[str, dict] = {}
+        day_model: dict[tuple[str, str], dict] = {}
+        for r in rows:
+            day = datetime.fromisoformat(r["minute"]).replace(tzinfo=timezone.utc).astimezone(tz).date().isoformat()
+            d = days.setdefault(day, {"key": day, "cost_usd": 0.0, "calls": 0})
+            dm = day_model.setdefault((day, r["model"]), {"day": day, "model": r["model"], "cost_usd": 0.0, "calls": 0})
+            for x in (d, dm):
+                x["cost_usd"] += r["cost_usd"]
+                x["calls"] += r["calls"]
+        return [days[k] for k in sorted(days)], [day_model[k] for k in sorted(day_model)]
 
     def calls(self, start=None, end=None, run_id=None, limit: int = 200) -> list[dict]:
         w, a = self._where(start, end, run_id)

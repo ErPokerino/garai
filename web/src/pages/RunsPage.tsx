@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, KeyRound, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useConfirm } from "../components/Confirm";
-import { Callout, Empty, Eyebrow, NextStep, SectionTitle, Spinner, StatusDot, buttonClass } from "../components/ui";
+import { Callout, Empty, Eyebrow, NextStep, Pager, SectionTitle, Spinner, StatusDot, buttonClass } from "../components/ui";
 import { api } from "../lib/api";
 import { LANG_LABEL, isBusy, relative, usd } from "../lib/format";
 import type { RunSummary } from "../lib/types";
@@ -79,6 +80,18 @@ function RunRow({ r, onDelete }: { r: RunSummary; onDelete: () => void }) {
   );
 }
 
+const PAGE_SIZES = [5, 10, 20];
+const SIZE_KEY = "garai.runs.pageSize";
+
+function storedSize(): number {
+  try {
+    const n = Number(localStorage.getItem(SIZE_KEY));
+    return PAGE_SIZES.includes(n) ? n : 10;
+  } catch {
+    return 10;
+  }
+}
+
 export default function RunsPage() {
   const qc = useQueryClient();
   const { data: runs, isLoading } = useQuery({
@@ -99,6 +112,25 @@ export default function RunsPage() {
   });
 
   const pending = (runs ?? []).filter((r) => nextStepFor(r)).slice(0, 3);
+
+  // archivio a pagine: la dimensione scelta resta ricordata nel browser
+  const [size, setSize] = useState(storedSize);
+  const [page, setPage] = useState(0);
+  const total = runs?.length ?? 0;
+  const pages = Math.max(1, Math.ceil(total / size));
+  useEffect(() => {
+    if (page > pages - 1) setPage(pages - 1); // es. dopo aver eliminato l'ultima pratica di una pagina
+  }, [page, pages]);
+  const shown = (runs ?? []).slice(page * size, (page + 1) * size);
+  const changeSize = (s: number) => {
+    setSize(s);
+    setPage(0);
+    try {
+      localStorage.setItem(SIZE_KEY, String(s));
+    } catch {
+      /* preferenza non salvata: pazienza */
+    }
+  };
 
   return (
     <div className="animate-rise space-y-14">
@@ -199,11 +231,16 @@ export default function RunsPage() {
             </Empty>
           </div>
         ) : (
-          <ul className="divide-y divide-line border-y border-line">
-            {runs.map((r) => (
-              <RunRow key={r.id} r={r} onDelete={() => del.mutate(r.id)} />
-            ))}
-          </ul>
+          <>
+            <ul className="divide-y divide-line border-y border-line">
+              {shown.map((r) => (
+                <RunRow key={r.id} r={r} onDelete={() => del.mutate(r.id)} />
+              ))}
+            </ul>
+            {total > PAGE_SIZES[0] && (
+              <Pager page={page} pages={pages} total={total} size={size} sizes={PAGE_SIZES} onPage={setPage} onSize={changeSize} noun={total === 1 ? "pratica" : "pratiche"} />
+            )}
+          </>
         )}
       </section>
     </div>
