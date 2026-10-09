@@ -1,14 +1,15 @@
 from .bando import BandoSpec, ProfileSpec, SubProfile
-from .content import ExperienceBlock, PersonContent, RequirementCoverage, WriterOutput
+from .content import ExperienceBlock, ExtraField, PersonContent, RequirementCoverage, WriterOutput
 from .cv import CVCanonical, CVEducation, CVExperience, CVLanguage
 from .report import FaithIssue, FitIssue, GenerationReport, PersonReport
-from .template import Box, SlideRef, Slot, TemplateSpec
+from .template import STANDARD_FIELDS, Box, CustomField, SlideRef, Slot, TemplateSpec
 
 __all__ = [
     "BandoSpec",
     "ProfileSpec",
     "SubProfile",
     "ExperienceBlock",
+    "ExtraField",
     "PersonContent",
     "RequirementCoverage",
     "WriterOutput",
@@ -20,7 +21,9 @@ __all__ = [
     "FitIssue",
     "GenerationReport",
     "PersonReport",
+    "STANDARD_FIELDS",
     "Box",
+    "CustomField",
     "SlideRef",
     "Slot",
     "TemplateSpec",

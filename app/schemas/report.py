@@ -35,3 +35,5 @@ class GenerationReport(BaseModel):
     template_name: str
     people: list[PersonReport] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+    fields: list[str] = Field(default_factory=list, description="Campi stampati dal template (vuoto = report precedente).")
+    field_labels: dict[str, str] = Field(default_factory=dict, description="Etichetta leggibile dei campi personalizzati.")

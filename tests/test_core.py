@@ -104,7 +104,7 @@ def test_budget_feedback_and_trim():
     c = _content(2, long=True)
     assert budget_feedback(c, b)  # bullet troppo lunghi
     n = len(c.experiences[0].bullets)
-    note = trim_for_issue(c, "experiences", "c0", 0, 3, experience_capacity(spec))
+    note = trim_for_issue(c, spec, "experiences", "c0", 0, 3, experience_capacity(spec))
     assert note and len(c.experiences[0].bullets) == n - 1 or len(c.experiences) == 1
     s0 = len(c.summary)
-    assert trim_for_issue(c, "summary", "", 0, 3, 6) and len(c.summary) < s0
+    assert trim_for_issue(c, spec, "summary", "", 0, 3, 6) and len(c.summary) < s0

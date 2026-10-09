@@ -113,7 +113,7 @@ function RunCosts({ run }: { run: Run }) {
 
 type Tab = "people" | "slides" | "costs" | "log";
 
-export function ResultPanel({ run }: { run: Run }) {
+export function ResultPanel({ run, onReview }: { run: Run; onReview?: () => void }) {
   const qc = useQueryClient();
   const res = run.result!;
   const [tab, setTab] = useState<Tab>("people");
@@ -181,6 +181,11 @@ export function ResultPanel({ run }: { run: Run }) {
               PPTX precedente
             </a>
           )}
+          {onReview && (
+            <button className="link-more cursor-pointer text-[13px]" onClick={onReview} disabled={busy}>
+              Rivedi abbinamenti e indicazioni
+            </button>
+          )}
         </span>
       </div>
 
@@ -223,6 +228,8 @@ export function ResultPanel({ run }: { run: Run }) {
         slides={res.slides}
         version={res.generated_at}
         busy={busy}
+        fields={res.report.fields}
+        fieldLabels={res.report.field_labels}
         onClose={() => setOpenFile(null)}
       />
     </div>

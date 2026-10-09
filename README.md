@@ -1,6 +1,6 @@
 # GarAI: CV su template PPT, guidato dal bando
 
-Input: **bando** (DOCX/PDF), **CV** eterogenei (DOCX/PDF), **template PPTX** (facoltativo).
+Input: **bando** (DOCX/PDF), **CV** eterogenei (DOCX/PDF), **template PPTX** richiesto dalla gara (se manca si usa quello Abstract).
 Output: **una sola PPTX** con tutti i CV inseriti nel template, riassunti e riordinati in funzione del profilo richiesto dal bando, nella lingua del bando, più un **report** (copertura dei requisiti, nomi inventati, tagli per spazio, verifica di fedeltà).
 
 ## Avvio rapido
@@ -25,8 +25,8 @@ Sviluppo frontend con hot reload: `python -m app --no-browser` in un terminale e
 
 ## Flusso nell'app
 
-1. **Nuova pratica**: carica bando + CV (+ template). L'analisi parte subito; avanzamento e costo si vedono in tempo reale.
-2. **Revisione**: profili e requisiti estratti dal bando; abbinamento CV → profilo/variante proposto dall'AI con affidabilità e motivazione, modificabile. **Nome del candidato** inseribile o correggibile (evidenziato quando il CV non lo riporta; se resta vuoto ne viene inventato uno). **Stima del costo** della generazione prima di avviarla.
+1. **Nuova pratica**: carica bando + CV (+ template della gara). L'analisi parte subito; avanzamento e costo si vedono in tempo reale.
+2. **Revisione**: profili e requisiti estratti dal bando; abbinamento CV → profilo/variante proposto dall'AI con affidabilità e motivazione, modificabile. **Nome del candidato** inseribile o correggibile (evidenziato quando il CV non lo riporta; se resta vuoto ne viene inventato uno). **Stima del costo** della generazione prima di avviarla. In **Dati e indicazioni** si correggono ruolo attuale, sede e contatti, si danno **indicazioni per la scrittura** (per candidato e per tutti: cosa mettere in evidenza, cosa evitare) e si può **escludere** un candidato. Dalla presentazione generata si torna a questo passo con «Rivedi abbinamenti e indicazioni».
 3. **Generazione**: scrittura dei contenuti, verifica di fedeltà, impaginazione sul template con misura reale, rendering delle slide.
 4. **Risultato**: download PPTX e report, anteprima slide, per ogni candidato la **copertura dei requisiti** (soddisfatti / parziali / non evidenziati), le affermazioni da verificare e le riduzioni applicate. I contenuti si possono **modificare a mano** e la presentazione si **ricostruisce senza nuove chiamate AI**.
 
@@ -93,7 +93,7 @@ Test: `python -m pytest` (unit, auth, layer LLM e costi con SDK simulati, API). 
 - Le fasi LLM sono state eseguite con Gemini su pratiche reali (circa $0,03 per CV); i prompt in `app/llm/prompts.py` vanno comunque affinati sui casi che emergono dall'uso.
 - Verificati con dati reali: ingestione DOCX/PDF, riempimento fedele del template, misura reale con PowerPoint, nessun overflow residuo, flusso completo dalla UI, modifica manuale e ricostruzione.
 - Il critico visivo è **solo segnalazione** (non modifica le slide).
-- Template diversi da quello Abstract: lo Spec viene proposto da un LLM con visione; è sperimentale e da rivedere una volta sola a mano.
+- **Template qualsiasi**: per un template diverso da quello Abstract un LLM con visione descrive gli spazi da compilare (titoli, righe "Etichetta: valore", elenchi, paragrafi, anche campi non previsti come "Lingue" o "Disponibilità"); `app/template/normalize.py` corregge e completa la proposta (shape inesistenti, campi, etichette, limite del piè di pagina, font del template) e una costruzione di prova la valida prima della scrittura. Nessuno slot è obbligatorio: budget, riempimento e riduzioni dipendono solo dagli slot presenti.
 - **Accesso**: tutte le API richiedono login. Password salvate come hash scrypt (`data/users.json`), sessione in cookie firmato HttpOnly/SameSite=Strict (Secure in HTTPS) con scadenza a 12 ore, protezione CSRF sull'origine delle richieste, blocco temporaneo dopo tentativi falliti, cambio password che chiude le altre sessioni. Per la messa online: `GARAI_SECRET_KEY` (chiave di firma delle sessioni) e `GARAI_ADMIN_PASSWORD` (password iniziale al posto di `123`) da un gestore di segreti; `python -m app --host 0.0.0.0` dietro HTTPS.
 - Le API key dei provider sono conservate sul server in `data/settings.json` e non vengono mai restituite in chiaro.
 

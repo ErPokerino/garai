@@ -21,16 +21,27 @@ class RequirementCoverage(BaseModel):
     evidence: str = Field(default="", description="Riferimento sintetico al CV che supporta lo stato.")
 
 
+class ExtraField(BaseModel):
+    """Valore di un campo personalizzato richiesto dal template."""
+
+    key: str = Field(description="Chiave del campo, esattamente come in budgets.custom_fields.")
+    text: str = Field(default="", description="Valore per i campi di tipo 'text'.")
+    items: list[str] = Field(default_factory=list, description="Voci per i campi di tipo 'list'.")
+
+
 class WriterOutput(BaseModel):
     """Cio' che produce il Writer LLM (solo le parti creative/di sintesi)."""
 
     current_role: str | None = Field(default=None, description="Ruolo attuale, nella lingua di output.")
-    summary: str = Field(description="Profilo sintetico orientato al ruolo richiesto.")
+    summary: str = Field(default="", description="Profilo sintetico orientato al ruolo richiesto.")
     background: list[str] = Field(
         default_factory=list, description="Formazione, certificazioni e lingue, una riga per voce, in ordine di rilevanza."
     )
-    skills: list[str] = Field(description="Competenze chiave, etichette brevi, le piu' rilevanti per il bando per prime.")
-    experiences: list[ExperienceBlock] = Field(description="Esperienze selezionate e riassunte.")
+    skills: list[str] = Field(default_factory=list, description="Competenze chiave, etichette brevi, le piu' rilevanti per il bando per prime.")
+    experiences: list[ExperienceBlock] = Field(default_factory=list, description="Esperienze selezionate e riassunte.")
+    extra_fields: list[ExtraField] = Field(
+        default_factory=list, description="Valori dei campi personalizzati del template (budgets.custom_fields)."
+    )
     coverage: list[RequirementCoverage] = Field(
         default_factory=list, description="Copertura dei requisiti minimi/premianti del profilo."
     )
@@ -55,6 +66,7 @@ class PersonContent(BaseModel):
     background: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     experiences: list[ExperienceBlock] = Field(default_factory=list)
+    extra: dict[str, str | list[str]] = Field(default_factory=dict, description="Campi personalizzati del template.")
     coverage: list[RequirementCoverage] = Field(default_factory=list)
     omitted: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

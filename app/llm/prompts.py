@@ -82,6 +82,11 @@ Non-negotiable rules:
      each bullet <= exp_bullet_chars characters, and all bullets of a block together must not exceed exp_bullet_lines_total lines
      (assume ~ exp_bullet_chars/2 characters per line).
    Shorter is better than overflowing. Bullets start with a verb or noun phrase, are concrete, no trailing period needed.
+   `budgets.fields_on_template` lists the fields the slide actually prints: write the other fields (summary, background,
+   skills, experiences) only if listed, otherwise return them empty. Budgets of 0 mean "not on the slide".
+   `budgets.custom_fields` (if present) are extra fields required by this template (e.g. languages, certifications):
+   return one `extra_fields` entry per key, with `text` for type 'text' (<= max_chars) or `items` for type 'list'
+   (<= max_items, each <= item_chars). Same fidelity rules: if the CV has nothing for a field, leave it empty.
 6. current_role: the candidate's current role in the output language (from the CV).
 7. coverage: for each minimum requirement and rewarding element of the profile (and of `target_subprofile` if given: its requirements/premiums apply in addition
    to the common ones), state met / partial / not_evidenced with a short evidence (<=140 chars) from the CV.
@@ -103,7 +108,34 @@ Be specific (which slide/area). If the slides look faithful to the template and 
 TRANSLATE_SYSTEM = """Translate the UI labels of a CV slide template into the target language. Keep the trailing colon if present and keep them short
 (they sit in fixed-width boxes). Return one item per input label, with the same `key` and the translated `text`."""
 
-TEMPLATE_ANALYST_SYSTEM = """You analyse a PowerPoint template for candidate CV slides. You get an inventory of shapes (id, name, geometry, text, font)
-and rendered images of the template slides. Propose a Template Spec JSON: for each slide of the 'person set' (e.g. profile, experience), the slots
-to fill (static_label, text, label_lines, free_text, bullets, pills, experience_columns) with shape ids, boxes (cm) for new text areas in empty zones,
-font sizes, shapes to remove (leftover placeholders/duplicates) and repeatable groups. Keep geometry inside the slide and above the footer."""
+TEMPLATE_ANALYST_SYSTEM = """You analyse a PowerPoint template that a tender (or a company) provides for candidate CV slides.
+You get an inventory of the shapes (id, name, geometry in cm, paragraphs with text/size/bold) and images of the slides.
+Return a Template Spec describing how to fill the slides of ONE candidate. Make no assumption about the layout: map what this
+template actually shows, whatever it is (one slide or several, any sections, any order).
+
+slides: the slides of the person set, each with a short `key` (e.g. 'profile', 'experience') and its 0-based `index`.
+
+slots: one per area to fill. Prefer filling the template's own shapes (shape_ids) so fonts, colours and bullets are kept.
+- static_label: a section title of the template (e.g. 'Skills'); options.label_key -> key of `labels` (translated if needed).
+- text: replace the text of one shape with a field (e.g. the name 'CV00001' -> full_name; 'Professione richiesta' -> profile_name).
+  options.max_lines (default 1).
+- label_lines: a shape whose paragraphs are 'Label: value' rows (e.g. 'Ruolo', 'Lingue:'). options.lines = one
+  {label_key, field} per paragraph, in the same order; options.separator (e.g. ': ').
+- bullets: a list of items (skills, education, languages, experiences...). Put the template's example/placeholder shape for
+  that list in shape_ids (e.g. a text box containing '.' or 'Skill 1'): it is resized to the free space below it automatically.
+  Use `box` only when no shape exists in that area.
+- free_text: a paragraph (e.g. a profile summary), in a shape (shape_ids) or a box.
+- pills: repeated rounded shapes holding one short skill each (shape_ids[0] = the pill to clone; options.columns
+  [{x,w}], first_row_y, row_pitch, pill_h, max_rows).
+- experience_columns: only if the template has dedicated experience columns with title/role/bullet paragraphs.
+remove_shape_ids: leftover sample shapes that must disappear (never a shape you list in shape_ids).
+
+Fields. Standard ones: full_name, profile_name (role requested by the tender), current_role, current_company,
+total_experience, domicile (city), phone, email, summary, background (education/certifications/languages as list),
+skills, experiences (structured blocks; usually a bullets slot). If the template asks for something else (e.g. languages,
+education, certifications, availability), use a snake_case custom key and declare it in `fields` with a clear English
+description and type 'text' or 'list'. Never invent placeholders such as 'photo': skip images and logos.
+
+labels: label_key -> {language code: text}, with the template's own wording in its language and an English version.
+font_pt: the font size the template uses for that area. bottom_limit_cm: the lowest y (cm) where content may go (above the footer).
+Coordinates are in cm and must stay inside the slide."""
