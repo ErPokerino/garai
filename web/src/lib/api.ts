@@ -79,7 +79,7 @@ export const api = {
   createRun: (form: FormData) => req<Run>("/api/runs", { method: "POST", body: form }),
   reanalyze: (id: string) => req<Run>(`/api/runs/${id}/analyze`, { method: "POST" }),
   deleteRun: (id: string) => req<{ ok: boolean }>(`/api/runs/${id}`, { method: "DELETE" }),
-  /** names: nome file CV -> nome e cognome inserito/corretto in revisione ("" = assente, verrà inventato) */
+  /** names: nome file CV -> nome e cognome inserito/corretto in revisione ("" = assente: resta vuoto) */
   setAssignments: (
     id: string,
     assignments: Record<string, Assignment>,
@@ -89,8 +89,10 @@ export const api = {
   ) => req<Run>(`/api/runs/${id}/assignments`, json("PUT", { assignments, names, details, guidance })),
   estimate: (id: string, visualCritic: boolean) =>
     req<Estimate>(`/api/runs/${id}/estimate?visual_critic=${visualCritic}`),
-  generate: (id: string, visualCritic: boolean) =>
-    req<Run>(`/api/runs/${id}/generate`, json("POST", { visual_critic: visualCritic })),
+  setOptions: (id: string, opts: { visual_critic?: boolean; hide_companies?: boolean; output_name?: string }) =>
+    req<Run>(`/api/runs/${id}/options`, json("PUT", opts)),
+  generate: (id: string, visualCritic: boolean, hideCompanies?: boolean) =>
+    req<Run>(`/api/runs/${id}/generate`, json("POST", { visual_critic: visualCritic, hide_companies: hideCompanies })),
   updatePerson: (id: string, content: PersonContent) =>
     req<Run>(`/api/runs/${id}/people/${encodeURIComponent(content.source_file)}`, json("PUT", content)),
   rebuild: (id: string) => req<Run>(`/api/runs/${id}/rebuild`, { method: "POST" }),

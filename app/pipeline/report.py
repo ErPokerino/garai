@@ -12,10 +12,10 @@ def to_markdown(r: GenerationReport) -> str:
         out.append(f"- {n}")
     for pr in r.people:
         c = pr.content
-        out += ["", f"## {c.full_name} ({c.source_file})", ""]
+        out += ["", f"## {c.full_name or 'Nome mancante'} ({c.source_file})", ""]
         out.append(f"- Profilo proposto: **{c.profile_name}** (id {c.profile_id})")
         if c.name_is_placeholder:
-            out.append("- ATTENZIONE: nome non presente nel CV, **inventato**")
+            out.append("- ATTENZIONE: nome non presente nel CV, **lasciato vuoto** (da completare)")
         for w in c.warnings:
             out.append(f"- {w}")
         out.append(f"- Iterazioni di fit: {pr.fit_iterations}")

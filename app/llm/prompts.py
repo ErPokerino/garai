@@ -67,6 +67,8 @@ Produce the content of the slide: summarised, re-ordered and tailored to the pro
 Non-negotiable rules:
 1. FIDELITY: use ONLY facts present in the CV. Never invent employers, dates, clients, technologies, certifications, numbers or achievements.
    You may rephrase, condense, translate and re-order; you may not add.
+   SKILLS in particular: list only competences the CV explicitly states (skills sections, tools/technologies/methods named in the
+   experiences, certifications). Never add a skill because the tender asks for it: a gap must stay a gap (report it in `coverage`).
 2. LANGUAGE: write everything in the output language. Translate CV content if it is in another language. Keep proper nouns, product and technology names as-is.
 3. TAILORING: foreground what matters for the target profile: requirements, rewarding elements, certifications, methodologies (e.g. Agile), domains.
    Reuse the tender's own vocabulary only where the CV genuinely supports it. Prefer recent and relevant experiences.
@@ -88,6 +90,10 @@ Non-negotiable rules:
    return one `extra_fields` entry per key, with `text` for type 'text' (<= max_chars) or `items` for type 'list'
    (<= max_items, each <= item_chars). Same fidelity rules: if the CV has nothing for a field, leave it empty.
 6. current_role: the candidate's current role in the output language (from the CV).
+   If `hide_company_names` is true (confidentiality): NEVER write the name of any company, employer, client or group the candidate
+   worked for or with (not in titles, summary, bullets, background, custom fields); describe each by its industry instead
+   (e.g. 'Primary banking group', 'Energy utility', 'IT consulting firm'), in the output language. Product, technology,
+   university and certification names are allowed. Then set `current_company_sector` to the industry of the current employer.
 7. coverage: for each minimum requirement and rewarding element of the profile (and of `target_subprofile` if given: its requirements/premiums apply in addition
    to the common ones), state met / partial / not_evidenced with a short evidence (<=140 chars) from the CV.
    Be honest: not_evidenced when the CV does not show it. This is for internal gap analysis, it is not printed on the slide.
@@ -97,6 +103,9 @@ VERIFY_SYSTEM = """You are a meticulous fact-checker. Compare the SLIDE CONTENT 
 List every claim in the slide (employer, client, project, role, period, technology, certification, degree, number, achievement, language level)
 that is NOT supported by the CV text. Do not flag rephrasing, translation, condensation or re-ordering.
 Flag invented specifics, wrong dates, wrong roles, technologies not mentioned anywhere in the CV, inflated seniority or numbers.
+Check EVERY item of `skills` individually: put in `unsupported_skills` (copied exactly as written in the slide) each skill that
+the CV does not evidence, neither stated nor clearly shown by a named tool/method in the experiences.
+Replacing a company or client name with its industry (anonymisation) is allowed and must not be flagged.
 severity: high = clearly invented/wrong fact; medium = plausible but not stated; low = slight overstatement.
 If everything is supported, return an empty list."""
 

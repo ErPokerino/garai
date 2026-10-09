@@ -12,7 +12,6 @@ from app.schemas import BandoSpec, CVCanonical, ExperienceBlock, PersonContent, 
 from app.template.budget import Budgets
 
 from .experience import end_sort_key, format_experience, total_months
-from .names import invent_name
 
 
 def _profile_payload(profile: ProfileSpec, bando: BandoSpec, subprofile: str | None) -> dict:
@@ -34,9 +33,11 @@ def write_content(
     previous: WriterOutput | None = None,
     subprofile: str | None = None,
     instructions: str | None = None,
+    hide_companies: bool = False,
 ) -> WriterOutput:
     user = {
         "output_language": prompts.language_name(language),
+        **({"hide_company_names": True} if hide_companies else {}),
         "budgets": budgets.to_prompt_dict(),
         "tender": _profile_payload(profile, bando, subprofile),
         "cv": cv.model_dump(exclude_none=True, exclude={"source_file"}),
@@ -134,13 +135,16 @@ def assemble_person(
     subprofile: str | None = None,
     custom_types: dict[str, str] | None = None,
     role_override: str | None = None,
+    hide_companies: bool = False,
+    banned_skills: set[str] | None = None,
 ) -> PersonContent:
     warnings: list[str] = []
-    if cv.full_name:
+    if cv.full_name and cv.full_name.strip():
         name, placeholder = cv.full_name.strip(), False
     else:
-        name, placeholder = invent_name(language, cv.source_file or "cv"), True
-        warnings.append(f"Nome non presente nel CV '{cv.source_file}': nome inventato ('{name}').")
+        # il nome non si inventa: resta vuoto (lo spazio nella slide resta, da completare a mano)
+        name, placeholder = "", True
+        warnings.append(f"Nome non presente nel CV '{cv.source_file}': lasciato vuoto, da completare.")
     months = total_months(cv, today)
     extra: dict[str, str | list[str]] = {}
     for f in w.extra_fields:
@@ -155,15 +159,93 @@ def assemble_person(
         phone=cv.phone,
         email=cv.email,
         current_role=(role_override or "").strip() or w.current_role or cv.headline,
-        current_company=_current_company(cv),
+        current_company=(w.current_company_sector or None) if hide_companies else _current_company(cv),
         total_experience=format_experience(months, language),
         domicile=cv.location,
         summary=w.summary,
         background=w.background,
-        skills=w.skills,
+        skills=[s for s in w.skills if s.casefold() not in (banned_skills or set())],
         experiences=sort_blocks(w.experiences, cv),
         extra=extra,
         coverage=w.coverage,
         omitted=w.omitted,
         warnings=warnings,
     )
+
+
+# ----------------------------------------------------------------------------- riservatezza: niente nomi di aziende
+
+_LEGAL = re.compile(
+    r"\b(s\.?r\.?l\.?s?|s\.?p\.?a\.?|s\.?a\.?s\.?|s\.?n\.?c\.?|ltd\.?|limited|inc\.?|corp\.?|gmbh|ag|plc|llc|b\.?v\.?|group|gruppo|holding)\b",
+    re.I,
+)
+_GENERIC = {"freelance", "libero professionista", "self-employed", "self employed", "consulente", "varie", "vari", "n/a",
+            "various", "confidential", "riservato", "personale", "private", "privato"}
+
+
+def company_names(cv: CVCanonical) -> list[str]:
+    """Nomi di aziende e clienti citati nel CV, ripuliti dalla forma societaria (es. 'ABSTRACT SRL' -> 'ABSTRACT')."""
+    out: list[str] = []
+    for e in cv.experiences:
+        for raw in (e.company, e.client):
+            for part in re.split(r"[/|,;]| - ", raw or ""):
+                name = _LEGAL.sub("", part).strip(" .-&")
+                if len(name) >= 3 and name.lower() not in _GENERIC and name.lower() not in [n.lower() for n in out]:
+                    out.append(name)
+    return sorted(out, key=len, reverse=True)
+
+
+def _pattern(name: str) -> re.Pattern:
+    words = [re.escape(w) for w in name.split()]
+    return re.compile(r"(?<![\w])" + r"[\s\-]*".join(words) + r"(?![\w])", re.I)
+
+
+def company_mentions(c: PersonContent, names: list[str]) -> list[str]:
+    """Nomi di aziende ancora presenti nei testi della slide."""
+    texts = [c.summary, c.current_role or "", c.current_company or "", *c.background, *c.skills]
+    for e in c.experiences:
+        texts += [e.title, e.role, *e.bullets]
+    for v in c.extra.values():
+        texts += v if isinstance(v, list) else [v]
+    blob = "\n".join(t for t in texts if t)
+    return [n for n in names if _pattern(n).search(blob)]
+
+
+_SEP = r"[/\-–,;&]"
+
+
+def _tidy(t: str) -> str:
+    """Ripulisce un testo da cui e' stato tolto un nome: separatori doppi, in testa o in coda, parentesi vuote."""
+    def one(m: re.Match) -> str:
+        ch = m.group(0).strip()[-1]
+        return {",": ", ", ";": "; "}.get(ch, f" {ch} ")
+
+    t = re.sub(rf"\s*{_SEP}(?:\s*{_SEP})+\s*", one, t)
+    t = re.sub(rf"(?:\s*{_SEP}|\s*:)+\s*$", "", t)
+    t = re.sub(rf"^\s*(?:{_SEP}|:)+\s*", "", t)
+    t = re.sub(r"\(\s*\)", "", t)
+    t = re.sub(r"\s+([,.;:])", r"\1", t)
+    return re.sub(r"\s{2,}", " ", t).strip()
+
+
+def scrub_companies(c: PersonContent, names: list[str]) -> list[str]:
+    """Ultima rete di sicurezza: toglie dai testi i nomi rimasti e ripulisce i separatori. Ritorna i nomi rimossi."""
+    found = company_mentions(c, names)
+    if not found:
+        return []
+
+    def clean(t: str) -> str:
+        for n in found:
+            t = _pattern(n).sub("", t)
+        return _tidy(t)
+
+    c.summary = clean(c.summary)
+    c.current_role = clean(c.current_role) if c.current_role else c.current_role
+    c.current_company = (clean(c.current_company) or None) if c.current_company else None
+    c.background = [x for x in (clean(b) for b in c.background) if x]
+    c.skills = [x for x in (clean(s) for s in c.skills) if x]
+    for e in c.experiences:
+        e.title, e.role = clean(e.title), clean(e.role)
+        e.bullets = [x for x in (clean(b) for b in e.bullets) if x]
+    c.extra = {k: ([x for x in (clean(i) for i in v) if x] if isinstance(v, list) else clean(v)) for k, v in c.extra.items()}
+    return found

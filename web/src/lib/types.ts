@@ -192,7 +192,8 @@ export interface Run {
   progress: number;
   message: string;
   error?: string | null;
-  options: { visual_critic: boolean };
+  options: { visual_critic: boolean; hide_companies?: boolean; output_name?: string };
+  output_file?: string;
   provider: string;
   models: Partial<Record<Tier, string>>;
   bando_file: string;

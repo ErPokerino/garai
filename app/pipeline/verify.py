@@ -19,10 +19,16 @@ def _slide_payload(c: PersonContent) -> dict:
         "background": c.background,
         "skills": c.skills,
         "experiences": [e.model_dump(exclude={"source_indices"}) for e in c.experiences],
+        **({"custom_fields": c.extra} if c.extra else {}),
     }
 
 
 def verify_content(llm: LLMClient, cv_text: str, content: PersonContent) -> list[FaithIssue]:
+    return verify_full(llm, cv_text, content).issues
+
+
+def verify_full(llm: LLMClient, cv_text: str, content: PersonContent) -> VerifyResult:
+    """Affermazioni non supportate e competenze non evidenziate dal CV."""
     user = f"SOURCE CV TEXT:\n{cv_text[:70000]}\n\nSLIDE CONTENT (JSON):\n" + json.dumps(_slide_payload(content), ensure_ascii=False)
     res = llm.structured(
         task=f"verify:{content.source_file.rsplit('.', 1)[0]}",
@@ -32,4 +38,4 @@ def verify_content(llm: LLMClient, cv_text: str, content: PersonContent) -> list
         tier="fast",
         max_tokens=3000,
     )
-    return res.issues
+    return res

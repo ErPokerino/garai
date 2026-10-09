@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import threading
 import time
@@ -52,6 +53,20 @@ class LogEntry(BaseModel):
 
 class RunOptions(BaseModel):
     visual_critic: bool = False
+    hide_companies: bool = False  # mai nomi di aziende/clienti nelle slide: solo il settore
+    output_name: str = ""  # nome del file PPTX scaricato (vuoto = derivato dal titolo del bando)
+
+
+_BAD_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def clean_output_name(name: str) -> str:
+    """Nome di file valido su Windows/macOS/Linux, senza estensione; vuoto se non utilizzabile."""
+    name = _BAD_CHARS.sub(" ", name or "")
+    name = re.sub(r"\s+", " ", name).strip().rstrip(". ")
+    if name.lower().endswith(".pptx"):
+        name = name[:-5].rstrip(". ")
+    return name[:120]
 
 
 class CandidateEdits(BaseModel):
@@ -97,6 +112,14 @@ class RunState(BaseModel):
     guidance: str = ""  # indicazioni valide per tutti i candidati
     result: RunResultInfo | None = None
     log: list[LogEntry] = Field(default_factory=list)
+
+    def output_file(self) -> str:
+        """Nome del PPTX scaricato: quello scelto dall'utente, altrimenti derivato dal titolo del bando."""
+        name = clean_output_name(self.options.output_name)
+        if not name:
+            stem = "".join(ch if ch.isalnum() or ch in " -_" else "_" for ch in self.title)[:60].strip() or "CV"
+            name = f"{stem} - CV"
+        return name + ".pptx"
 
     def summary(self, cost: dict | None = None) -> dict:
         return {
@@ -351,7 +374,7 @@ class RunManager:
                         details: dict[str, dict] | None = None, guidance: str | None = None) -> RunState:
         """Abbinamenti CV -> profilo e interventi del bid manager prima della generazione.
 
-        names: nomi corretti/inseriti a mano (vuoto = assente: in generazione ne verra' inventato uno, segnalato).
+        names: nomi corretti/inseriti a mano (vuoto = assente: nella presentazione resta vuoto, segnalato).
         details: per CV, dati che vanno sulla slide (location, email, phone, current_role), indicazioni per la
         scrittura (instructions) ed esclusione dalla presentazione (excluded). guidance: indicazioni per tutti."""
         st = self.get(run_id)
@@ -421,6 +444,23 @@ class RunManager:
         keep = set(self.included(st))
         return estimate_generation(st.model_copy(update={"cvs": [c for c in st.cvs if c.source_file in keep]}), crit, settings)
 
+    def set_options(self, run_id: str, visual_critic: bool | None = None, hide_companies: bool | None = None,
+                    output_name: str | None = None) -> RunState:
+        """Opzioni della pratica modificabili in ogni momento (il nome del file vale subito, senza rigenerare)."""
+        st = self.get(run_id)
+        if visual_critic is not None:
+            st.options.visual_critic = visual_critic
+        if hide_companies is not None:
+            if st.status in ("analyzing", "generating"):
+                raise RuntimeError("Elaborazione in corso: cambia l'opzione al termine.")
+            st.options.hide_companies = hide_companies
+        if output_name is not None:
+            if output_name.strip() and not clean_output_name(output_name):
+                raise ValueError("Nome del file non valido.")
+            st.options.output_name = clean_output_name(output_name)
+        self._save(st)
+        return st
+
     def generate(self, run_id: str, visual_critic: bool | None = None) -> RunState:
         st = self.get(run_id)
         if st.bando is None or not st.cvs:
@@ -444,7 +484,7 @@ class RunManager:
             duration_s=round(time.time() - t0, 1), edited=edited,
         )
         st.status, st.progress = "done", 1.0
-        bad = [p.content.full_name for p in res.report.people if p.fit_issues]
+        bad = [p.content.full_name or p.content.source_file for p in res.report.people if p.fit_issues]
         self._log(st, "done", "Presentazione pronta" + (f" (impaginazione da rivedere: {', '.join(bad)})" if bad else ""))
         self._save(st)
         self._emit(st.id, "status", {"status": st.status})
@@ -466,7 +506,8 @@ class RunManager:
             with self._render_lock:
                 shutil.rmtree(d / "out", ignore_errors=True)
                 res = pipe.generate(st.bando, items, st.assignments, d / "out", visual_critic=st.options.visual_critic,
-                                    instructions=instructions, role_overrides=roles)
+                                    instructions=instructions, role_overrides=roles,
+                                    hide_companies=st.options.hide_companies)
             self._store_result(st, res, t0, edited=False)
         except Exception as e:  # noqa: BLE001
             self._fail(st, e, back_to="review" if isinstance(e, (LLMUnavailable, BudgetExceeded)) else None)
@@ -481,8 +522,8 @@ class RunManager:
                 # campi non modificabili dalla UI restano quelli originali
                 keep = pr.content.model_dump(include={"source_file", "profile_id", "coverage", "omitted"})
                 new = PersonContent.model_validate({**content.model_dump(), **keep})
-                if pr.content.name_is_placeholder and new.full_name.strip() != pr.content.full_name.strip():
-                    # nome reale inserito a mano al posto di quello inventato: l'avviso non vale piu'
+                if pr.content.name_is_placeholder and new.full_name.strip():
+                    # nome inserito a mano dove il CV non lo riportava: l'avviso non vale piu'
                     new.name_is_placeholder = False
                     new.warnings = [w for w in new.warnings if not w.startswith("Nome non presente")]
                 pr.content = new

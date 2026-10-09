@@ -1,7 +1,7 @@
 # GarAI: CV su template PPT, guidato dal bando
 
 Input: **bando** (DOCX/PDF), **CV** eterogenei (DOCX/PDF), **template PPTX** richiesto dalla gara (se manca si usa quello Abstract).
-Output: **una sola PPTX** con tutti i CV inseriti nel template, riassunti e riordinati in funzione del profilo richiesto dal bando, nella lingua del bando, più un **report** (copertura dei requisiti, nomi inventati, tagli per spazio, verifica di fedeltà).
+Output: **una sola PPTX** con tutti i CV inseriti nel template, riassunti e riordinati in funzione del profilo richiesto dal bando, nella lingua del bando, più un **report** (copertura dei requisiti, nomi mancanti, tagli per spazio, verifica di fedeltà).
 
 ## Avvio rapido
 
@@ -25,10 +25,10 @@ Sviluppo frontend con hot reload: `python -m app --no-browser` in un terminale e
 
 ## Flusso nell'app
 
-1. **Nuova pratica**: carica bando + CV (+ template della gara). L'analisi parte subito; avanzamento e costo si vedono in tempo reale.
-2. **Revisione**: profili e requisiti estratti dal bando; abbinamento CV → profilo/variante proposto dall'AI con affidabilità e motivazione, modificabile. **Nome del candidato** inseribile o correggibile (evidenziato quando il CV non lo riporta; se resta vuoto ne viene inventato uno). **Stima del costo** della generazione prima di avviarla. In **Dati e indicazioni** si correggono ruolo attuale, sede e contatti, si danno **indicazioni per la scrittura** (per candidato e per tutti: cosa mettere in evidenza, cosa evitare) e si può **escludere** un candidato. Dalla presentazione generata si torna a questo passo con «Rivedi abbinamenti e indicazioni».
+1. **Nuova pratica**: carica bando + CV (+ template della gara). Opzioni: **non citare le aziende** (al posto di datori di lavoro e clienti viene indicato il settore) e **nome del file** della presentazione. L'analisi parte subito; avanzamento e costo si vedono in tempo reale.
+2. **Revisione**: profili e requisiti estratti dal bando; abbinamento CV → profilo/variante proposto dall'AI con affidabilità e motivazione, modificabile. **Nome del candidato** inseribile o correggibile (evidenziato quando il CV non lo riporta; se resta vuoto, nella slide lo spazio del nome resta vuoto: non viene mai inventato). **Stima del costo** della generazione prima di avviarla. In **Dati e indicazioni** si correggono ruolo attuale, sede e contatti, si danno **indicazioni per la scrittura** (per candidato e per tutti: cosa mettere in evidenza, cosa evitare) e si può **escludere** un candidato. Dalla presentazione generata si torna a questo passo con «Rivedi abbinamenti e indicazioni».
 3. **Generazione**: scrittura dei contenuti, verifica di fedeltà, impaginazione sul template con misura reale, rendering delle slide.
-4. **Risultato**: download PPTX e report, anteprima slide, per ogni candidato la **copertura dei requisiti** (soddisfatti / parziali / non evidenziati), le affermazioni da verificare e le riduzioni applicate. I contenuti si possono **modificare a mano** e la presentazione si **ricostruisce senza nuove chiamate AI**.
+4. **Risultato**: download PPTX e report, anteprima slide, per ogni candidato la **copertura dei requisiti** (soddisfatti / parziali / non evidenziati), le affermazioni da verificare e le riduzioni applicate. I contenuti si possono **modificare a mano** e la presentazione si **ricostruisce senza nuove chiamate AI**. Il **nome del file** si cambia in ogni momento, senza rigenerare.
 
 Le pratiche restano salvate in `data/runs/` e sono consultabili dallo storico anche dopo un riavvio.
 
@@ -59,7 +59,7 @@ Scelte chiave:
 
 - **Il template non viene ricreato**: le slide originali sono clonate e riempite (`python-pptx` + lxml), quindi font, colori, loghi e icone restano identici. Il template Abstract ha **2 slide per persona** (profilo + esperienze): lo Spec in `templates/abstract_cv.spec.json` descrive gli slot.
 - **Layout garantito da misure, non dall'LLM**: i limiti di spazio sono calcolati dal template e passati al Writer; il testo reale viene misurato su PowerPoint (COM) e, se serve, riscritto o tagliato in modo deterministico.
-- **Nessuna invenzione**: il Writer può solo riformulare/selezionare; un verificatore segnala affermazioni non supportate dal CV.
+- **Nessuna invenzione**: il Writer può solo riformulare/selezionare; un verificatore segnala affermazioni non supportate dal CV e controlla **una per una le competenze**: quelle che il CV non evidenzia vengono tolte (anche dalle riscritture successive) e indicate nel report. Il nome del candidato non viene mai inventato. Con l'opzione di riservatezza i nomi delle aziende sono sostituiti dal settore, con un controllo deterministico finale sui nomi presenti nel CV.
 - **Output strutturato nativo** per ogni provider (schema JSON imposto lato server), con ripiego automatico su "JSON nel prompt" se un modello non lo supporta.
 - **Interfaccia** sull'identità visiva di abstract.it: Funnel Sans + Work Sans, viola `#7355ec` e arancio `#ff7800`, tema chiaro/scuro.
 - **Renderer** per misura/anteprima: PowerPoint (Windows) > LibreOffice > stima Pillow. Forzabile con `RENDERER=powerpoint|libreoffice|estimate`.
