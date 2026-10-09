@@ -126,7 +126,7 @@ function CandidateRow({ cv, bando, value, name, onAssign, onName, index, details
             </label>
             {missing && !excluded && (
               <p className={clsx("mt-1.5 px-3 text-[13px]", name.trim() ? "text-ink-3" : "text-orange-ink")}>
-                {name.trim() ? "Nome inserito a mano (il CV non lo riporta)." : "Il CV non riporta il nome: inseriscilo, oppure ne verrà inventato uno."}
+                {name.trim() ? "Nome inserito a mano (il CV non lo riporta)." : "Il CV non riporta il nome: inseriscilo, altrimenti nella presentazione resterà vuoto."}
               </p>
             )}
             <div className="mt-1.5 px-3 text-[13px] text-ink-3">
@@ -255,6 +255,10 @@ export function ReviewPanel({ run, onBack }: { run: Run; onBack?: () => void }) 
   const [details, setDetails] = useState<Record<string, Details>>(initialDetails);
   const [guidance, setGuidance] = useState(run.guidance ?? "");
   const [critic, setCritic] = useState(run.options.visual_critic);
+  const [hideCompanies, setHideCompanies] = useState(!!run.options.hide_companies);
+  useEffect(() => {
+    setHideCompanies(!!run.options.hide_companies);
+  }, [run.options.hide_companies]);
   useEffect(() => {
     setAssign(run.assignments);
   }, [run.assignments]);
@@ -294,7 +298,7 @@ export function ReviewPanel({ run, onBack }: { run: Run; onBack?: () => void }) 
   const generate = useMutation({
     mutationFn: async () => {
       if (dirty) await persist();
-      return api.generate(run.id, critic);
+      return api.generate(run.id, critic, hideCompanies);
     },
     onSuccess: (r) => qc.setQueryData(["run", run.id], r),
     onError: (e: Error) => toast.error(e.message),
@@ -422,6 +426,14 @@ export function ReviewPanel({ run, onBack }: { run: Run; onBack?: () => void }) 
             </div>
             <div className="mt-5 border-t border-line pt-5">
               <Switch checked={critic} onChange={setCritic} label="Controllo grafico con AI" hint="Segnala difetti visivi confrontando le slide con il template." />
+              <div className="mt-4">
+                <Switch
+                  checked={hideCompanies}
+                  onChange={setHideCompanies}
+                  label="Non citare le aziende"
+                  hint="Al posto dei nomi di datori di lavoro e clienti viene indicato il settore."
+                />
+              </div>
             </div>
             <Button size="lg" className="mt-5 w-full" loading={generate.isPending} onClick={() => generate.mutate()}>
               Genera la presentazione <ArrowRight className="size-4" />

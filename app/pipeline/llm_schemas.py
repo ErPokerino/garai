@@ -22,6 +22,9 @@ class Assignment(BaseModel):
 
 class VerifyResult(BaseModel):
     issues: list[FaithIssue] = Field(default_factory=list)
+    unsupported_skills: list[str] = Field(
+        default_factory=list, description="Competenze della slide non evidenziate dal CV, copiate esattamente come scritte."
+    )
 
 
 class CriticResult(BaseModel):

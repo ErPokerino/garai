@@ -33,6 +33,9 @@ class WriterOutput(BaseModel):
     """Cio' che produce il Writer LLM (solo le parti creative/di sintesi)."""
 
     current_role: str | None = Field(default=None, description="Ruolo attuale, nella lingua di output.")
+    current_company_sector: str | None = Field(
+        default=None, description="Solo con hide_company_names: settore del datore di lavoro attuale (al posto del nome)."
+    )
     summary: str = Field(default="", description="Profilo sintetico orientato al ruolo richiesto.")
     background: list[str] = Field(
         default_factory=list, description="Formazione, certificazioni e lingue, una riga per voce, in ordine di rilevanza."

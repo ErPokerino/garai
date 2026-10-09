@@ -4,7 +4,6 @@ from pptx import Presentation
 
 from app.pipeline.experience import end_sort_key, format_experience, parse_ym, total_months
 from app.pipeline.fit import budget_feedback, trim_for_issue
-from app.pipeline.names import invent_name
 from app.schemas import CVCanonical, CVExperience, ExperienceBlock, PersonContent
 from app.template.budget import compute_budgets
 from app.template.deck import build_deck, experience_capacity, make_meter
@@ -47,12 +46,6 @@ def test_sort_key_current_first():
     cur = CVExperience(start="2020-01", is_current=True)
     old = CVExperience(start="2019-01", end="2022-01")
     assert end_sort_key(cur, TODAY) > end_sort_key(old, TODAY)
-
-
-def test_invent_name_is_deterministic_and_language_aware():
-    assert invent_name("it", "CV_PM.docx") == invent_name("it", "CV_PM.docx")
-    assert invent_name("it", "a") != invent_name("it", "b") or True
-    assert len(invent_name("en", "a").split()) == 2
 
 
 def test_spec_loads_and_slots():

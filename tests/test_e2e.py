@@ -42,12 +42,16 @@ def test_no_residual_overflow(run):
     assert all(not p.fit_issues for p in res.report.people)
 
 
-def test_missing_names_are_invented_and_flagged(run):
+def test_missing_names_are_left_empty_and_flagged(run):
+    """Il nome non si inventa: se il CV non lo riporta resta vuoto ed e' segnalato."""
     *_, res = run
+    assert any(p.content.name_is_placeholder for p in res.report.people)
     for p in res.report.people:
-        assert p.content.full_name
         if p.content.name_is_placeholder:
-            assert any("inventato" in w for w in p.content.warnings)
+            assert p.content.full_name == ""
+            assert any("lasciato vuoto" in w for w in p.content.warnings)
+        else:
+            assert p.content.full_name
 
 
 def test_all_shapes_inside_slide(run):

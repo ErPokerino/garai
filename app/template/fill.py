@@ -350,7 +350,10 @@ def fill_text(slide: Slide, slot: Slot, ctx: FillContext) -> None:
         return
     value = as_text(field_value(ctx.content, slot.field))
     if not value:
-        remove_shape(sh)
+        if slot.field == "full_name":
+            _set_single_text(sh, "", ctx)  # nome mancante: lo spazio resta vuoto, da completare a mano
+        else:
+            remove_shape(sh)
         return
     _set_single_text(sh, value, ctx)
     set_shape_name(sh, _name(slot.id, ctx, chk=f"lines:{int(slot.options.get('max_lines', 1))}"))

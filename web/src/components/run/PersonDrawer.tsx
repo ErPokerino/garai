@@ -84,7 +84,7 @@ function Detail({ runId, report, slides, version }: { runId: string; report: Per
   const c = report.content;
   const mySlides = report.slides.map((n) => slides[n - 1]).filter(Boolean);
   const alerts = [
-    ...(c.name_is_placeholder ? [`Il CV non riporta il nome: «${c.full_name}» è inventato. Puoi correggerlo in «Contenuti».`] : []),
+    ...(c.name_is_placeholder ? ["Il CV non riporta il nome: nella slide lo spazio è vuoto. Puoi inserirlo in «Contenuti»."] : []),
     ...report.fit_issues.map((f) => `Slide ${f.slide}: ${f.detail}`),
   ];
   return (
@@ -205,11 +205,12 @@ function Editor({ value, onChange, fields, fieldLabels }: {
         indicato nelle note.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Nome e cognome" hint={value.name_is_placeholder ? "Nome inventato: sostituiscilo con quello reale." : undefined}>
+        <Field label="Nome e cognome" hint={value.name_is_placeholder ? "Il CV non lo riporta: inseriscilo, altrimenti resta vuoto." : undefined}>
           <input
             className="input"
             value={value.full_name}
-            onChange={(e) => onChange({ ...value, full_name: e.target.value, name_is_placeholder: false })}
+            placeholder="Nome mancante"
+            onChange={(e) => onChange({ ...value, full_name: e.target.value, name_is_placeholder: !e.target.value.trim() })}
           />
         </Field>
         {shows("current_role") && (
@@ -346,7 +347,7 @@ export function PersonDrawer({ runId, report, slides, version, onClose, busy, fi
     <Drawer
       open
       onClose={onClose}
-      title={c.full_name}
+      title={c.full_name || "Nome mancante"}
       subtitle={`${c.profile_name} · ${c.source_file}`}
       width="max-w-3xl"
       footer={

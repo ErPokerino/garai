@@ -313,7 +313,8 @@ def _run_view(run_id: str) -> dict:
     st = runs.get(run_id)
     data = to_json(st)
     data["cost"] = runs.cost(run_id)
-    data["event_seq"] = runs.last_seq(run_id)  # il client apre lo stream SSE da qui (niente duplicati)
+    data["event_seq"] = runs.last_seq(run_id)
+    data["output_file"] = st.output_file()  # il client apre lo stream SSE da qui (niente duplicati)
     return data
 
 
@@ -340,13 +341,18 @@ async def create_run(
     cvs: Annotated[list[UploadFile], File()],
     template: Annotated[UploadFile | None, File()] = None,
     visual_critic: Annotated[bool, Form()] = False,
+    hide_companies: Annotated[bool, Form()] = False,
+    output_name: Annotated[str, Form(max_length=200)] = "",
 ):
     b = await _read_upload(bando, ALLOWED_DOCS)
     cv_files = [await _read_upload(f, ALLOWED_DOCS) for f in cvs]
     tpl = await _read_upload(template, {".pptx"}) if template is not None and template.filename else None
     if not has_remote():
         raise ValueError("Nessun provider LLM configurato: inserisci una API key in Impostazioni.")
-    st = runs.create(b, cv_files, tpl, RunOptions(visual_critic=visual_critic))
+    from app.service.runs import clean_output_name
+
+    opts = RunOptions(visual_critic=visual_critic, hide_companies=hide_companies, output_name=clean_output_name(output_name))
+    st = runs.create(b, cv_files, tpl, opts)
     return _run_view(st.id)
 
 
@@ -415,10 +421,25 @@ def get_estimate(run_id: str, visual_critic: bool | None = None):
 
 class GenerateBody(BaseModel):
     visual_critic: bool | None = None
+    hide_companies: bool | None = None
+
+
+class OptionsBody(BaseModel):
+    visual_critic: bool | None = None
+    hide_companies: bool | None = None
+    output_name: str | None = Field(default=None, max_length=200)
+
+
+@app.put("/api/runs/{run_id}/options")
+def put_options(run_id: str, body: OptionsBody):
+    runs.set_options(run_id, body.visual_critic, body.hide_companies, body.output_name)
+    return _run_view(run_id)
 
 
 @app.post("/api/runs/{run_id}/generate")
 def generate(run_id: str, body: GenerateBody):
+    if body.hide_companies is not None:
+        runs.set_options(run_id, hide_companies=body.hide_companies)
     runs.generate(run_id, body.visual_critic)
     return _run_view(run_id)
 
@@ -443,9 +464,7 @@ def run_file(run_id: str, path: str, download: bool = False):
         raise HTTPException(404, "File non trovato")
     name = f.name
     if download and f.suffix == ".pptx":
-        st = runs.get(run_id)
-        stem = "".join(ch if ch.isalnum() or ch in " -_" else "_" for ch in st.title)[:60].strip() or "CV"
-        name = f"{stem} - CV.pptx"
+        name = runs.get(run_id).output_file()
     return FileResponse(f, filename=name if download else None,
                         headers={"Cache-Control": "no-cache"})
 

@@ -23,8 +23,8 @@ from .fit import budget_feedback, fit_deck
 from .llm_schemas import Assignment
 from .matching import assign_profile
 from .report import to_markdown
-from .tailor import assemble_person, write_content
-from .verify import verify_content
+from .tailor import assemble_person, company_mentions, company_names, scrub_companies, write_content
+from .verify import verify_full
 
 Progress = Callable[[str, float, str], None]
 
@@ -61,6 +61,8 @@ class Pipeline:
         self.cfg = cfg
         self.progress = progress
         self.meter = make_meter(self.spec)
+        self.hide_companies = False  # riservatezza: nessun nome di azienda/cliente nelle slide (settore al suo posto)
+        self.banned: dict[str, set[str]] = {}  # competenze non evidenziate dal CV, per file: escluse anche nelle riscritture
 
     # ------------------------------------------------------------------ fase 1: analisi
     def read_bando(self, path: Path) -> tuple[SourceDocument, BandoSpec]:
@@ -96,14 +98,30 @@ class Pipeline:
     # ------------------------------------------------------------------ fase 2: generazione
     def _assemble(self, cv, profile, w, lang, sub, role: str | None) -> PersonContent:
         types = {f.key: f.type for f in self.spec.fields}
-        return assemble_person(cv, profile, w, lang, subprofile=sub, custom_types=types, role_override=role)
+        c = assemble_person(cv, profile, w, lang, subprofile=sub, custom_types=types, role_override=role,
+                            hide_companies=self.hide_companies, banned_skills=self.banned.get(cv.source_file))
+        if self.hide_companies:
+            removed = scrub_companies(c, company_names(cv))
+            if removed:
+                c.warnings.append("Nomi di aziende tolti dai testi (riservatezza): " + ", ".join(removed))
+        return c
 
     def _write_person(
         self, item: CVItem, profile, sub, bando: BandoSpec, budgets: Budgets, instr: str | None = None, role: str | None = None
     ) -> tuple[WriterOutput, PersonContent, list]:
         cv = item.cv
         lang = bando.language
-        w = write_content(self.llm, cv, profile, bando, budgets, lang, subprofile=sub, instructions=instr)
+        hide = self.hide_companies
+        w = write_content(self.llm, cv, profile, bando, budgets, lang, subprofile=sub, instructions=instr, hide_companies=hide)
+        if hide:  # nomi di aziende sfuggiti al writer: una revisione mirata prima della pulizia deterministica
+            left = company_mentions(assemble_person(cv, profile, w, lang, subprofile=sub), company_names(cv))
+            if left:
+                try:
+                    w = write_content(self.llm, cv, profile, bando, budgets, lang, subprofile=sub, instructions=instr,
+                                      hide_companies=True, previous=w,
+                                      feedback=[f"Remove the company/client names {', '.join(left)}: describe them by industry"])
+                except LLMUnavailable:
+                    pass
         content = self._assemble(cv, profile, w, lang, sub, role)
         # 1) budget: fino a 2 revisioni LLM se il testo supera nettamente i limiti
         for _ in range(2):
@@ -112,24 +130,39 @@ class Pipeline:
                 break
             try:
                 w = write_content(self.llm, cv, profile, bando, budgets, lang, feedback=fb, previous=w, subprofile=sub,
-                                  instructions=instr)
+                                  instructions=instr, hide_companies=self.hide_companies)
             except LLMUnavailable:
                 break  # niente revisione LLM: ci pensano misura reale e trimming deterministico
             content = self._assemble(cv, profile, w, lang, sub, role)
         # 2) fedelta': se ci sono affermazioni non supportate gravi, una revisione
         faith: list = []
         try:
-            faith = verify_content(self.llm, item.doc.text, content)
+            res = verify_full(self.llm, item.doc.text, content)
+            self._ban_skills(cv.source_file, res.unsupported_skills, content)
+            faith = res.issues
             severe = [f for f in faith if f.severity == "high"]
             if severe:
                 fb = [f"Remove or correct unsupported claim in {f.slot}: '{f.text}' ({f.reason})" for f in severe]
                 w = write_content(self.llm, cv, profile, bando, budgets, lang, feedback=fb, previous=w, subprofile=sub,
-                                  instructions=instr)
+                                  instructions=instr, hide_companies=self.hide_companies)
                 content = self._assemble(cv, profile, w, lang, sub, role)
-                faith = verify_content(self.llm, item.doc.text, content)
+                res = verify_full(self.llm, item.doc.text, content)
+                self._ban_skills(cv.source_file, res.unsupported_skills, content)
+                faith = res.issues
         except LLMUnavailable:
             content.warnings.append("Verifica di fedelta' non eseguita (LLM non disponibile).")
         return w, content, faith
+
+    def _ban_skills(self, source_file: str, skills: list[str], content: PersonContent) -> None:
+        """Competenze che il CV non evidenzia: tolte dalla slide e da ogni riscrittura successiva."""
+        bad = {s.strip().casefold() for s in skills if s.strip()}
+        bad &= {s.casefold() for s in content.skills}  # solo quelle davvero presenti (copiate esattamente)
+        if not bad:
+            return
+        self.banned.setdefault(source_file, set()).update(bad)
+        removed = [s for s in content.skills if s.casefold() in bad]
+        content.skills = [s for s in content.skills if s.casefold() not in bad]
+        content.warnings.append("Competenze tolte perché non presenti nel CV: " + ", ".join(removed))
 
     def _phase(self, name: str) -> None:
         if hasattr(self.llm, "phase"):  # MeteredClient: etichetta le chiamate per fase (analisi/generazione/...)
@@ -144,10 +177,12 @@ class Pipeline:
         visual_critic: bool = True,
         instructions: dict[str, str] | None = None,
         role_overrides: dict[str, str] | None = None,
+        hide_companies: bool = False,
     ) -> RunResult:
         """assignments: nome file CV -> Assignment (profilo e sotto-profilo; modificabile dall'utente).
         instructions: indicazioni del bid manager per CV; role_overrides: ruolo attuale imposto a mano per CV."""
         self._phase("generation")
+        self.hide_companies = hide_companies
         lang = bando.language
         budgets = compute_budgets(self.spec, self.meter, self.cfg.max_experiences)
 
@@ -179,6 +214,7 @@ class Pipeline:
                 w = write_content(
                     self.llm, items[person].cv, profiles[person], bando, budgets, lang,
                     feedback=feedback, previous=writer_outs[person], subprofile=subs[person], instructions=instr[person],
+                    hide_companies=hide_companies,
                 )
             except LLMUnavailable:
                 return None

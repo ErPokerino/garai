@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Download, Hammer } from "lucide-react";
+import { ArrowRight, Download, FileText, Hammer, Pencil } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, fileUrl } from "../../lib/api";
@@ -29,11 +29,11 @@ function PersonRow({ p, index, onOpen }: { p: PersonReport; index: number; onOpe
       <div className="flex min-w-0 gap-4">
         <span className="pt-0.5 font-display text-sm font-semibold text-ink-3 tabular">{String(index + 1).padStart(2, "0")}</span>
         <div className="min-w-0">
-          <div className="truncate font-display text-[18px] font-semibold transition-colors group-hover:text-violet-ink">{c.full_name}</div>
+          <div className="truncate font-display text-[18px] font-semibold transition-colors group-hover:text-violet-ink">{c.full_name || <span className="text-orange-ink">Nome mancante</span>}</div>
           <div className="truncate text-[13px] text-ink-2">{c.profile_name}</div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {c.total_experience && <Tag>{c.total_experience} di esperienza</Tag>}
-            {c.name_is_placeholder && <Tag tone="warn">nome inventato</Tag>}
+            {c.name_is_placeholder && <Tag tone="warn">nome da inserire</Tag>}
             {p.fit_issues.length > 0 && <Tag tone="bad">impaginazione da rivedere</Tag>}
             {toCheck > 0 && <Tag tone="bad">{toCheck} affermazioni da verificare</Tag>}
             {p.fit_notes.length > 0 && <Tag>{p.fit_notes.length === 1 ? "1 taglio" : `${p.fit_notes.length} tagli`} per spazio</Tag>}
@@ -113,6 +113,63 @@ function RunCosts({ run }: { run: Run }) {
 
 type Tab = "people" | "slides" | "costs" | "log";
 
+/** Nome del file scaricato: si cambia in ogni momento, senza rigenerare. */
+function OutputName({ run }: { run: Run }) {
+  const qc = useQueryClient();
+  const current = (run.output_file ?? "presentazione.pptx").replace(/\.pptx$/i, "");
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(current);
+  const save = useMutation({
+    mutationFn: (name: string) => api.setOptions(run.id, { output_name: name }),
+    onSuccess: (r) => {
+      qc.setQueryData(["run", run.id], r);
+      setEditing(false);
+      toast.success("Nome del file aggiornato");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (!editing) {
+    return (
+      <div className="flex min-w-0 items-center gap-2 text-[15px]">
+        <FileText className="size-4 shrink-0 text-ink-3" />
+        <span className="truncate font-medium" title={run.output_file}>
+          {run.output_file}
+        </span>
+        <button
+          className="cursor-pointer rounded-md p-1 text-ink-3 hover:bg-subtle hover:text-ink"
+          onClick={() => {
+            setValue(current);
+            setEditing(true);
+          }}
+          aria-label="Rinomina il file"
+          title="Rinomina il file"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate(value);
+      }}
+    >
+      <input className="input max-w-md" autoFocus maxLength={120} value={value} onChange={(e) => setValue(e.target.value)} aria-label="Nome del file" />
+      <span className="text-[13px] text-ink-3">.pptx</span>
+      <Button type="submit" size="sm" loading={save.isPending}>
+        Salva
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>
+        Annulla
+      </Button>
+      <span className="w-full text-[13px] text-ink-3">Lascia vuoto per usare il titolo del bando.</span>
+    </form>
+  );
+}
+
 export function ResultPanel({ run, onReview }: { run: Run; onReview?: () => void }) {
   const qc = useQueryClient();
   const res = run.result!;
@@ -122,7 +179,7 @@ export function ResultPanel({ run, onReview }: { run: Run; onReview?: () => void
   const people = res.report.people;
   const bad = people.filter((p) => p.fit_issues.length).length;
   const toCheck = people.reduce((a, p) => a + p.faith_issues.filter((f) => f.severity === "high").length, 0);
-  const invented = people.filter((p) => p.content.name_is_placeholder).length;
+  const nameless = people.filter((p) => p.content.name_is_placeholder).length;
 
   const rebuild = useMutation({
     mutationFn: () => api.rebuild(run.id),
@@ -133,7 +190,7 @@ export function ResultPanel({ run, onReview }: { run: Run; onReview?: () => void
   const checks = [
     bad && `${bad} candidat${bad === 1 ? "o" : "i"} con impaginazione da rivedere`,
     toCheck && `${toCheck} affermazion${toCheck === 1 ? "e" : "i"} da verificare`,
-    invented && `${invented} nom${invented === 1 ? "e inventato" : "i inventati"}`,
+    nameless && `${nameless} nom${nameless === 1 ? "e mancante" : "i mancanti"} (spazio vuoto nella slide)`,
   ].filter(Boolean) as string[];
 
   return (
@@ -163,6 +220,8 @@ export function ResultPanel({ run, onReview }: { run: Run; onReview?: () => void
           {checks.length ? checks.join(" · ") : "Tutti i testi rientrano nei riquadri del template e non ci sono affermazioni gravi da verificare."}
         </NextStep>
       )}
+
+      <OutputName run={run} />
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-ink-3">
         <span>

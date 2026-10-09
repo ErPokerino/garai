@@ -5,7 +5,7 @@ import { type ReactNode, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Dropzone } from "../components/Dropzone";
-import { Button, Callout, PageTitle, Panel, Switch } from "../components/ui";
+import { Button, Callout, Field, PageTitle, Panel, Switch } from "../components/ui";
 import { api } from "../lib/api";
 import { PROVIDER_LABEL } from "../lib/format";
 
@@ -34,6 +34,8 @@ export default function NewRunPage() {
   const [tpl, setTpl] = useState<File[]>([]);
   const [customTpl, setCustomTpl] = useState(false);
   const [critic, setCritic] = useState(false);
+  const [hideCompanies, setHideCompanies] = useState(false);
+  const [outputName, setOutputName] = useState("");
 
   const create = useMutation({
     mutationFn: () => {
@@ -42,6 +44,8 @@ export default function NewRunPage() {
       cvs.forEach((f) => fd.append("cvs", f));
       if (customTpl && tpl[0]) fd.append("template", tpl[0]);
       fd.append("visual_critic", String(critic));
+      fd.append("hide_companies", String(hideCompanies));
+      if (outputName.trim()) fd.append("output_name", outputName.trim());
       return api.createRun(fd);
     },
     onSuccess: (r) => {
@@ -128,6 +132,28 @@ export default function NewRunPage() {
                 label="Controllo grafico con AI"
                 hint="Confronta le slide finali con il template e segnala difetti visivi. Costo aggiuntivo."
               />
+              <div className="mt-4">
+                <Switch
+                  checked={hideCompanies}
+                  onChange={setHideCompanies}
+                  label="Non citare le aziende"
+                  hint="Al posto dei nomi di datori di lavoro e clienti viene indicato il settore (es. «gruppo bancario»)."
+                />
+              </div>
+            </div>
+            <div className="border-t border-line pt-5">
+              <Field label="Nome del file" hint="Facoltativo: modificabile anche dopo la generazione.">
+                <div className="flex items-center gap-2">
+                  <input
+                    className="input"
+                    value={outputName}
+                    maxLength={120}
+                    placeholder="Titolo del bando - CV"
+                    onChange={(e) => setOutputName(e.target.value)}
+                  />
+                  <span className="shrink-0 text-[13px] text-ink-3">.pptx</span>
+                </div>
+              </Field>
             </div>
             <div className="border-t border-line pt-5">
               <Button size="lg" className="w-full" disabled={!ready || (customTpl && !tpl.length)} loading={create.isPending} onClick={() => create.mutate()}>
