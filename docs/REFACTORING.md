@@ -33,7 +33,7 @@ POC Python (~3.000 righe) con una pipeline ben progettata e una UI Streamlit.
 - **Layer LLM riscritto** (`app/llm/`):
   - `providers.py`: Anthropic con **structured outputs** (`messages.parse`), OpenAI, **Gemini** (`google-genai`, `response_json_schema` + `thinking_level`); ripiego automatico su JSON nel prompt se un modello non supporta lo schema, e sul ragionamento di default se il livello richiesto non è accettato; retry con backoff sugli errori transitori Gemini (429/5xx).
   - Ogni chiamata restituisce l'**Usage** (input non in cache, output incluso ragionamento, cache letta/scritta, latenza, tentativi).
-  - `pricing.py`: listino versionato per data (gestisce l'aumento di Gemini 3.8 Flash dal 2027), override da UI.
+  - `pricing.py`: listino versionato per data (gestisce l'aumento di Gemini 3.8 Flash dal 2027), correzioni via API.
   - `usage.py`: **registro SQLite** di ogni chiamata, aggregazioni (giorno, modello, attività, pratica, fase) e **limiti di spesa** per pratica e mensili.
   - La cache su disco conserva il consumo originale: i riusi sono registrati come **risparmio**.
   - Schemi resi portabili tra provider (schema JSON autocontenuto; `Translation` da mappa a lista di coppie).

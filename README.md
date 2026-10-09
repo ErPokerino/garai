@@ -42,7 +42,7 @@ Le pratiche restano salvate in `data/runs/` e sono consultabili dallo storico an
 
 Il modello **principale** fa estrazione del bando, parsing dei CV, scrittura e critico visivo; quello **veloce** abbinamento, verifica di fedeltà e traduzione etichette. Modelli e livello di ragionamento si scelgono per livello dalle Impostazioni.
 
-**Monitoraggio costi** (pagina *Costi*): ogni chiamata è registrata in `data/garai.db` con token di input/output/ragionamento/cache, durata e costo calcolato sul listino in vigore quel giorno. Viste per giorno e modello, per attività della pipeline, per pratica; costo medio per CV; risparmio della cache locale (una richiesta identica non viene ripetuta e non costa). Listino modificabile dalla UI (`data/pricing.json`). **Limiti di spesa** per pratica e mensili: al raggiungimento le chiamate si fermano con un messaggio chiaro.
+**Monitoraggio costi** (pagina *Costi*): ogni chiamata è registrata in `data/garai.db` con token di input/output/ragionamento/cache, durata e costo calcolato sul listino in vigore quel giorno. Spesa giornaliera o cumulativa per modello (con i modelli selezionabili dalla legenda), per attività della pipeline, per pratica; costo medio per CV; risparmio della cache locale (una richiesta identica non viene ripetuta e non costa). Listino nel codice (`app/llm/pricing.py`), con eventuali correzioni via API in `data/pricing.json`. **Limiti di spesa** per pratica e mensili: al raggiungimento le chiamate si fermano con un messaggio chiaro.
 
 Nota sul listino Gemini: i prezzi di Gemini 3.8 Flash ($0,75 / $3,75 per milione di token in/out) **raddoppiano dal 1° gennaio 2027**; il calcolo ne tiene già conto.
 

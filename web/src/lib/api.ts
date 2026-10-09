@@ -68,9 +68,6 @@ export const api = {
     ),
 
   pricing: () => req<PriceRow[]>("/api/pricing"),
-  setPrice: (model: string, entry: { provider: string; label?: string; input: number; output: number; cache_read?: number }) =>
-    req<PriceRow[]>(`/api/pricing/${encodeURIComponent(model)}`, json("PUT", entry)),
-  resetPrice: (model: string) => req<PriceRow[]>(`/api/pricing/${encodeURIComponent(model)}`, { method: "DELETE" }),
 
   costs: (days: number) => req<CostSummary>(`/api/costs/summary?days=${days}`),
   calls: (runId?: string, limit = 200) =>

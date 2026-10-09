@@ -1,14 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { Pencil, RotateCcw, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { toast } from "sonner";
-import { Button, Empty, Field, Metric, Modal, PageTitle, Panel, SectionTitle, Spinner, Tag } from "../components/ui";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Empty, Metric, PageTitle, Panel, Spinner, Tag } from "../components/ui";
 import { api } from "../lib/api";
 import { compact, dateTime, dayLabel, int, usd } from "../lib/format";
-import type { CostSummary, PriceRow } from "../lib/types";
+import type { CostSummary } from "../lib/types";
 
 const PERIODS = [
   { days: 7, label: "7 giorni" },
@@ -53,7 +52,41 @@ function useModelColors() {
   }, [data]);
 }
 
-function DailyChart({ data, colorOf }: { data: CostSummary; colorOf: (m: string) => string }) {
+type ChartMode = "daily" | "cumulative";
+
+const MODES: { id: ChartMode; label: string }[] = [
+  { id: "daily", label: "Giornaliera" },
+  { id: "cumulative", label: "Cumulativa" },
+];
+
+function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
+  return (
+    <div className="flex rounded-lg border border-line p-0.5" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          aria-pressed={value === o.id}
+          className={clsx(
+            "cursor-pointer rounded-md px-3 py-1.5 font-display text-[13px] font-medium transition",
+            value === o.id ? "bg-ink text-canvas" : "text-ink-2 hover:text-ink",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// decimali in base all'ordine di grandezza: con importi piccoli le tacche non si ripetono
+const yTick = (v: number) => (v === 0 ? "$0" : `$${v.toFixed(v < 0.1 ? 3 : v < 10 ? 2 : 0)}`);
+
+/** Spesa per modello nel periodo: barre giornaliere impilate o aree cumulative. I modelli si mostrano/nascondono dalla legenda. */
+function SpendChart({ data, colorOf }: { data: CostSummary; colorOf: (m: string) => string }) {
+  const [mode, setMode] = useState<ChartMode>("daily");
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
   const { rows, models } = useMemo(() => {
     const byDay = new Map<string, Record<string, number | string>>();
     const models = new Set<string>();
@@ -71,33 +104,118 @@ function DailyChart({ data, colorOf }: { data: CostSummary; colorOf: (m: string)
     return { rows: days.map((d) => byDay.get(d) ?? { day: d }), models: [...models].sort() };
   }, [data]);
 
-  if (!data.by_day_model.length) return <Empty title="Nessuna spesa nel periodo" />;
+  // totale progressivo per modello, giorno per giorno
+  const cumulative = useMemo(() => {
+    const run: Record<string, number> = {};
+    return rows.map((r) => {
+      const out: Record<string, number | string> = { day: r.day };
+      for (const m of models) {
+        run[m] = (run[m] ?? 0) + ((r[m] as number) ?? 0);
+        out[m] = run[m];
+      }
+      return out;
+    });
+  }, [rows, models]);
+
+  const visible = models.filter((m) => !hidden.has(m));
+  const toggle = (m: string) => {
+    const next = new Set(hidden);
+    if (next.has(m)) next.delete(m);
+    else if (visible.length > 1) next.add(m); // almeno un modello resta visibile
+    setHidden(next);
+  };
+
+  const axes = [
+    <CartesianGrid key="g" vertical={false} stroke="var(--chart-grid)" />,
+    <XAxis key="x" dataKey="day" tickFormatter={dayLabel} tick={{ fontSize: 12, fill: "var(--chart-axis)" }} tickLine={false} axisLine={false} minTickGap={28} />,
+    <YAxis key="y" tickFormatter={yTick} tick={{ fontSize: 12, fill: "var(--chart-axis)" }} tickLine={false} axisLine={false} width={48} />,
+  ];
+
   return (
-    <>
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barCategoryGap="22%">
-            <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-            <XAxis dataKey="day" tickFormatter={dayLabel} tick={{ fontSize: 12, fill: "var(--chart-axis)" }} tickLine={false} axisLine={false} minTickGap={28} />
-            <YAxis tickFormatter={(v) => `$${v < 1 ? v.toFixed(2) : v.toFixed(0)}`} tick={{ fontSize: 12, fill: "var(--chart-axis)" }} tickLine={false} axisLine={false} width={48} />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--chart-grid)", opacity: 0.6 }} />
-            {models.map((m, i) => (
-              <Bar key={m} dataKey={m} name={m} stackId="a" fill={colorOf(m)} stroke="var(--chart-surface)" strokeWidth={1.5} radius={i === models.length - 1 ? [4, 4, 0, 0] : 0} maxBarSize={26} />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      {models.length > 1 && (
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] text-ink-2">
-          {models.map((m) => (
-            <span key={m} className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-[2px]" style={{ background: colorOf(m) }} />
-              {m}
-            </span>
-          ))}
+    <section>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold">{mode === "daily" ? "Spesa giornaliera per modello" : "Spesa cumulativa per modello"}</h2>
+          <p className="mt-0.5 text-sm text-ink-3">{mode === "daily" ? "Quanto è stato speso ogni giorno" : "Totale progressivo dall'inizio del periodo"}</p>
         </div>
+        <Segmented value={mode} options={MODES} onChange={setMode} label="Tipo di grafico" />
+      </div>
+      {!data.by_day_model.length ? (
+        <Empty title="Nessuna spesa nel periodo" />
+      ) : (
+        <>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              {mode === "daily" ? (
+                <BarChart data={rows} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barCategoryGap="22%">
+                  {axes}
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--chart-grid)", opacity: 0.6 }} />
+                  {visible.map((m, i) => (
+                    <Bar
+                      key={m}
+                      dataKey={m}
+                      name={m}
+                      stackId="a"
+                      fill={colorOf(m)}
+                      stroke="var(--chart-surface)"
+                      strokeWidth={1.5}
+                      radius={i === visible.length - 1 ? [4, 4, 0, 0] : 0}
+                      maxBarSize={26}
+                    />
+                  ))}
+                </BarChart>
+              ) : (
+                <AreaChart data={cumulative} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                  {axes}
+                  <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--chart-axis)", strokeWidth: 1, strokeDasharray: "3 3" }} />
+                  {visible.map((m) => (
+                    <Area
+                      key={m}
+                      dataKey={m}
+                      name={m}
+                      stackId="a"
+                      type="linear"
+                      stroke={colorOf(m)}
+                      strokeWidth={2}
+                      fill={colorOf(m)}
+                      fillOpacity={0.22}
+                      activeDot={{ r: 4, stroke: "var(--chart-surface)", strokeWidth: 2 }}
+                    />
+                  ))}
+                </AreaChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+          {models.length > 1 && (
+            <div className="mt-4 flex flex-wrap items-center gap-x-1 gap-y-1 text-[13px]" role="group" aria-label="Modelli da mostrare nel grafico">
+              {models.map((m) => {
+                const on = !hidden.has(m);
+                return (
+                  <button
+                    key={m}
+                    onClick={() => toggle(m)}
+                    aria-pressed={on}
+                    title={on ? (visible.length > 1 ? "Nascondi dal grafico" : "Almeno un modello resta visibile") : "Mostra nel grafico"}
+                    className={clsx(
+                      "flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 transition-colors hover:bg-subtle",
+                      on ? "text-ink-2" : "text-ink-3 line-through",
+                    )}
+                  >
+                    <span className={clsx("size-2.5 rounded-[2px]", !on && "opacity-30")} style={{ background: colorOf(m) }} />
+                    {m}
+                  </button>
+                );
+              })}
+              {hidden.size > 0 && (
+                <button onClick={() => setHidden(new Set())} className="ml-2 cursor-pointer px-2 py-1 font-display font-medium text-violet-ink hover:underline">
+                  Mostra tutti
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
-    </>
+    </section>
   );
 }
 
@@ -129,114 +247,6 @@ function StageChart({ data }: { data: CostSummary }) {
   );
 }
 
-function PriceEditor({ row, onClose }: { row: PriceRow; onClose: () => void }) {
-  const qc = useQueryClient();
-  const [v, setV] = useState({ input: String(row.current?.input ?? 0), output: String(row.current?.output ?? 0), cache_read: String(row.current?.cache_read ?? 0) });
-  const save = useMutation({
-    mutationFn: () => api.setPrice(row.model, { provider: row.provider, label: row.label, input: +v.input, output: +v.output, cache_read: +v.cache_read }),
-    onSuccess: (d) => {
-      qc.setQueryData(["pricing"], d);
-      qc.invalidateQueries({ queryKey: ["costs"] });
-      toast.success("Prezzo aggiornato", { description: "Vale per le chiamate future; lo storico resta invariato." });
-      onClose();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  return (
-    <Modal open onClose={onClose}>
-      <div className="w-[min(92vw,28rem)] overflow-hidden rounded-xl bg-surface shadow-2xl">
-        <div className="brand-line h-0.5" />
-        <div className="p-6">
-          <h3 className="text-xl font-bold">{row.label}</h3>
-          <p className="mt-1 text-[13px] text-ink-3">{row.model} · dollari per milione di token</p>
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            {(["input", "output", "cache_read"] as const).map((k) => (
-              <Field key={k} label={{ input: "Letti", output: "Scritti", cache_read: "In cache" }[k]}>
-                <input className="input tabular" type="number" min={0} step="0.001" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} />
-              </Field>
-            ))}
-          </div>
-          <div className="mt-6 flex justify-end gap-2">
-            <Button variant="secondary" onClick={onClose}>
-              Annulla
-            </Button>
-            <Button loading={save.isPending} onClick={() => save.mutate()}>
-              Salva
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function PricingTable() {
-  const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["pricing"], queryFn: api.pricing });
-  const [edit, setEdit] = useState<PriceRow | null>(null);
-  const reset = useMutation({ mutationFn: api.resetPrice, onSuccess: (d) => qc.setQueryData(["pricing"], d) });
-  const groups = ["gemini", "anthropic", "openai", "custom"];
-  const today = new Date().toISOString().slice(0, 10);
-  return (
-    <section>
-      <SectionTitle eyebrow="Listino" title="Prezzi dei modelli" aside={<span className="text-sm text-ink-3">dollari per milione di token · il costo usa il prezzo in vigore quel giorno</span>} />
-      <div className="overflow-x-auto">
-        <table className="w-full text-[15px]">
-          <thead>
-            <tr className="border-b border-line text-left text-[13px] text-ink-3">
-              <th className="py-2.5 pr-3 font-medium">Modello</th>
-              <th className="px-3 py-2.5 text-right font-medium">Letti</th>
-              <th className="px-3 py-2.5 text-right font-medium">Scritti</th>
-              <th className="px-3 py-2.5 text-right font-medium">In cache</th>
-              <th className="px-3 py-2.5 font-medium">Fonte</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {data
-              ?.slice()
-              .sort((a, b) => groups.indexOf(a.provider) - groups.indexOf(b.provider))
-              .map((r) => (
-                <tr key={r.model}>
-                  <td className="py-3 pr-3">
-                    <div className="font-medium">{r.label}</div>
-                    <div className="text-[13px] text-ink-3">{r.model}</div>
-                  </td>
-                  <td className="tabular px-3 py-3 text-right">${r.current?.input.toFixed(3)}</td>
-                  <td className="tabular px-3 py-3 text-right">${r.current?.output.toFixed(2)}</td>
-                  <td className="tabular px-3 py-3 text-right text-ink-3">${r.current?.cache_read.toFixed(3)}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {r.overridden ? <Tag tone="violet">personalizzato</Tag> : r.verified ? <Tag tone="ok">listino ufficiale</Tag> : <Tag tone="warn">da verificare</Tag>}
-                      {r.tiers
-                        .filter((t) => t.from > today)
-                        .map((t) => (
-                          <Tag key={t.from}>
-                            dal {new Date(t.from).toLocaleDateString("it-IT")}: ${t.input} / ${t.output}
-                          </Tag>
-                        ))}
-                    </div>
-                  </td>
-                  <td className="py-3 pl-3 text-right whitespace-nowrap">
-                    {r.overridden && (
-                      <button className="cursor-pointer rounded-md p-1.5 text-ink-3 hover:bg-subtle hover:text-ink" title="Ripristina il prezzo ufficiale" onClick={() => reset.mutate(r.model)}>
-                        <RotateCcw className="size-4" />
-                      </button>
-                    )}
-                    <button className="cursor-pointer rounded-md p-1.5 text-ink-3 hover:bg-subtle hover:text-ink" title="Modifica" onClick={() => setEdit(r)}>
-                      <Pencil className="size-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-      {edit && <PriceEditor row={edit} onClose={() => setEdit(null)} />}
-    </section>
-  );
-}
-
 export default function CostsPage() {
   const [days, setDays] = useState(30);
   const { data, isLoading } = useQuery({ queryKey: ["costs", days], queryFn: () => api.costs(days) });
@@ -253,20 +263,7 @@ export default function CostsPage() {
         title="Quanto stai spendendo"
         subtitle="Ogni chiamata ai modelli AI è registrata con i token usati e il costo. Le risposte già ottenute vengono riusate gratis."
         actions={
-          <div className="flex rounded-lg border border-line p-0.5" role="group" aria-label="Periodo">
-            {PERIODS.map((p) => (
-              <button
-                key={p.days}
-                onClick={() => setDays(p.days)}
-                className={clsx(
-                  "cursor-pointer rounded-md px-3 py-1.5 font-display text-[13px] font-medium transition",
-                  days === p.days ? "bg-ink text-canvas" : "text-ink-2 hover:text-ink",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          <Segmented value={String(days)} options={PERIODS.map((p) => ({ id: String(p.days), label: p.label }))} onChange={(v) => setDays(Number(v))} label="Periodo" />
         }
       />
 
@@ -297,15 +294,12 @@ export default function CostsPage() {
 
           {t.unpriced > 0 && (
             <p className="-mt-8 flex items-center gap-2 text-[13px] text-warn">
-              <TriangleAlert className="size-4" /> {t.unpriced} chiamate su modelli senza prezzo a listino (contate a 0): aggiungi il prezzo qui sotto.
+              <TriangleAlert className="size-4" /> {t.unpriced} chiamate su modelli senza prezzo a listino, contate a 0.
             </p>
           )}
 
           <div className="grid gap-10 xl:grid-cols-[1.4fr_1fr]">
-            <section>
-              <h2 className="mb-5 text-xl font-bold">Spesa giornaliera per modello</h2>
-              <DailyChart data={data} colorOf={colorOf} />
-            </section>
+            <SpendChart data={data} colorOf={colorOf} />
             <section>
               <h2 className="mb-1 text-xl font-bold">Dove vanno i token</h2>
               <p className="mb-5 text-sm text-ink-3">Spesa per attività della pipeline</p>
@@ -386,7 +380,6 @@ export default function CostsPage() {
         </>
       )}
 
-      <PricingTable />
     </div>
   );
 }

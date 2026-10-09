@@ -32,7 +32,7 @@ const REASONING_LABEL: Record<string, string> = {
 function PriceHint({ model, prices }: { model: string; prices?: PriceRow[] }) {
   const p = prices?.find((x) => x.model === model) ?? prices?.find((x) => model.startsWith(x.model));
   if (!model) return null;
-  if (!p?.current) return <span className="text-warn">Prezzo non a listino: aggiungilo in Costi → Prezzi dei modelli</span>;
+  if (!p?.current) return <span className="text-warn">Prezzo non a listino: le chiamate a questo modello saranno contate a 0</span>;
   return (
     <span className="tabular">
       {usd(p.current.input)} letti · {usd(p.current.output)} scritti, per milione di token

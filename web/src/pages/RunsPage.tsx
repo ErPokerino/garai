@@ -11,7 +11,7 @@ import type { RunSummary } from "../lib/types";
 const STEPS = [
   { n: "01", t: "Carica", d: "Il bando e i CV, in Word o PDF, anche in formati diversi." },
   { n: "02", t: "Controlla", d: "Ogni candidato abbinato al profilo richiesto: verifichi e correggi." },
-  { n: "03", t: "Scarica", d: "Un'unica presentazione sul template Abstract, con la copertura dei requisiti." },
+  { n: "03", t: "Scarica", d: "Un'unica presentazione sul template richiesto dalla gara, con la copertura dei requisiti." },
 ];
 
 function nextStepFor(r: RunSummary): { title: string; text: string; cta: string } | null {
@@ -110,7 +110,7 @@ export default function RunsPage() {
               Dal bando alla presentazione dei CV, in tre passi.
             </h1>
             <p className="mt-4 max-w-xl text-[17px] leading-relaxed text-ink-2">
-              garai legge il bando, abbina ogni candidato al profilo richiesto e scrive CV sintetici e fedeli, impaginati sul template Abstract.
+              garai legge il bando, abbina ogni candidato al profilo richiesto e scrive CV sintetici e fedeli, impaginati sul template richiesto dalla gara.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link to="/new" className={buttonClass("primary", "lg")}>
